@@ -1,4 +1,27 @@
 
+/* ==================================================================
+344. Reverse String
+Difficulty: Easy
+Write a function that takes a string as input and returns the string reversed.
+
+Example:
+Given s = "hello", return "olleh".
+*/
+//For loop, O(n) time. O(n) space.
+/**
+ * @param {string} s
+ * @return {string}
+ */
+var reverseString = function(s) {
+    if(!s || s === "") {
+        return s;
+    }
+    var res = "";
+    for(var i = s.length; i >= 0; i--) {
+        res = res.concat(s.charAt(i));
+    }
+    return res;
+};
 
 
 /* ==================================================================

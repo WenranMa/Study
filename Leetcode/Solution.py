@@ -1,5 +1,22 @@
 
+'''==================================================================
+344. Reverse String
+Difficulty: Easy
+Write a function that takes a string as input and returns the string reversed.
 
+Example:
+Given s = "hello", return "olleh".
+'''
+#Reverse array.
+class Solution(object):
+    def reverseString(self, s):
+        """
+        :type s: str
+        :rtype: str
+        """
+        if s is None:
+            return s
+        return s[::-1]
 
 
 '''==================================================================

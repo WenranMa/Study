@@ -1,4 +1,26 @@
 
+/* ==================================================================
+344. Reverse String
+Difficulty: Easy
+Write a function that takes a string as input and returns the string reversed.
+
+Example:
+Given s = "hello", return "olleh".
+*/
+//For loop, O(n) time. O(n) space.
+public class Solution {
+    public String reverseString(String s) {
+        if(s == null || s.length() == 0) {
+            return s;
+        }
+        StringBuilder res = new StringBuilder();
+        for(int i = s.length() - 1; i >= 0; i--) {
+            res.append(s.charAt(i));
+        }
+        return res.toString();
+    }
+}
+
 
 /* ==================================================================
 383. Ransom Note
@@ -12,7 +34,7 @@ canConstruct("a", "b") -> false
 canConstruct("aa", "ab") -> false
 canConstruct("aa", "aab") -> true
 */
-
+//Hash map, O(n) time. O(1) space if there are only 26 character.s
 public class Solution {
     public boolean canConstruct(String ransomNote, String magazine) {
         
