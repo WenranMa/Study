@@ -135,6 +135,14 @@ var isVowel = function(c) {
 
 
 /* ==================================================================
+374. Guess Number Higher or Lower
+N/A for JS
+*/
+// Binary Search! O(logN) time. Be careful with the overflow, use l + (r - l) / 2;
+
+
+
+/* ==================================================================
 383. Ransom Note
 Difficulty: Easy
 Given an arbitrary ransom note string and another string containing letters from all the magazines, write a function that will return true if the ransom note can be constructed from the magazines;
