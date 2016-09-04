@@ -1,8 +1,10 @@
-# test
-a test..
-About how to use git and github..
+# Study.
 
+A repo about daily study.
 
-
+Leetcode:
+	Leetcode solutions, contains JAVA, JAVASCRIPT and PYTHON.
 
 Python:
+
+Andriod:
