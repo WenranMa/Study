@@ -1,4 +1,4 @@
-git init                                                  # 初始化本地git仓库（创建新仓库）
+﻿git init                                                  # 初始化本地git仓库（创建新仓库）
 git config --global user.name "xxx"                       # 配置用户名
 git config --global user.email "xxx@xxx.com"              # 配置邮件
 git config --global color.ui true                         # git status等命令自动着色
@@ -85,8 +85,6 @@ git grep -e '#define' --and -e SORT_DIRENT
 git gc
 git fsck
 
-
-
 常见错误:
 error:failed to push some refs to ...
 问题的出现原因在于：git仓库中已经有一部分代码，所以它不允许你直接把你的代码覆盖上去。
@@ -100,3 +98,25 @@ $ git fetch
 $ git merge
 这2句命令等价于
 $ git pull 
+
+===============================================================================================================================
+Git on Android (Windows):
+1. 在studio中配置git插件：File->Setting->Version Control->Git, 然后选择你本地的Git安装路径（需要定位到git.exe），然后点击Test
+
+If you're using GitHub for Windows, git.exe may not be in your PATH, but you may find it in a location like: C:\Users\<username>\AppData\Local\GitHub\PortableGit_<numbersandletters>\bin\git.exe
+That's the situation for me, in Windows 7 + version 1.0 of GitHub for Windows.
+In Windows 10 and the latest version of GitHub for Windows it appears to be in
+C:\Users\<username>\AppData\Local\GitHub\PortableGit_<numbersandletters>\cmd\git.exe
+( \cmd versus \bin)
+PS: AppData is a hidden folder by default.
+可以添加到windows系统Path.
+
+2.将项目初始化git项目(git init)，操作如下：VCS->Enable Control Integration->Select “Git”.（当然也可以使用git命令，自行选择）
+
+3.上传项目到Github前的准备->忽略部分文件（如将gen .idea .iml等写入根目录下的.gitignore文件）
+
+4.上传项目到Github前的准备->登陆Github
+
+5.share到Github（VCS>Import into Version Control>Share Project on GitHub） 
+
+6.添加仓库名称和描述 
