@@ -1,0 +1,40 @@
+Android Study:
+
+
+Activity类 、Service类 、Application类本质上都是Context子类;
+总Context实例个数 = Service个数 + Activity个数 + 1（Application对应的Context实例
+
+
+View onTouchEvent(MotionEvent):
+
+
+
+
+??
+
+requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+
+canvas.save()
+canvas.restore();
+
+
+
+setFocusable()
+setKeepScreenOn()
+
+DisplayMetrics
+
+
+
+
+surfaceHolder.Callback
+
+
+
+android.util.AttributeSet;
+android.util.DisplayMetrics;
+
+android.view.MotionEvent;
+
+
