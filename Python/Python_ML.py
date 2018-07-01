@@ -1,3 +1,4 @@
+#=======================================================================
 #========================= ML Basic ====================================
 '''
 数据整体DataSet，每一行是一个sample；
@@ -95,7 +96,7 @@ print(r)
 r = numpy.random.normal(3, 4, (4, 5)) #均值为loc = 3，方差为scale = 4的3x5矩阵
 print(r)
 
-#=========================== Numpy 数组操作 =====================================
+#=========================== Numpy 数组操作 =========================
 X = numpy.arange(15).reshape((3, 5))
 print(X, X.ndim, X.shape, X.size) #ndim = 2, shape = (3,5), size = 15
 print(X[2, 1]) #第三行，第二列的元素访问
@@ -158,7 +159,7 @@ print(A1, A2) #A1是前三行， A2是后一行
 A1, A2 = numpy.hsplit(A, [3])
 print(A1, A2) #A1是前三列， A2是后一列
 
-#=========================== Numpy 矩阵运算 =====================================
+#=========================== Numpy 矩阵运算 =========================
 L = [i for i in range(10)]
 print(2 * L) #两个array拼接，python不支持原生矩阵计算。
 L = numpy.array([i for i in range(10)])
@@ -209,7 +210,7 @@ print(A.dot(invA))
 #必须是方阵才有逆矩阵，但不是方阵在numpy中可以求伪逆矩阵。
 #numpy.linalg.pinv()
 
-#=========================== Numpy 聚合运算 =====================================
+#=========================== Numpy 聚合运算 =========================
 A = numpy.arange(20)
 print(numpy.sum(A)) #求和，多为数组也可以
 print(numpy.min(A)) #最小值
@@ -225,7 +226,7 @@ print(numpy.percentile(A, q = 25)) # 25%的数小于
 print(numpy.var(A)) #方差 ？？
 print(numpy.std(A)) #标准差  ？？
 
-#=========================== Numpy 索引 =====================================
+#=========================== Numpy 索引 =============================
 A = numpy.arange(20) * 12
 print(numpy.argmin(A)) #最小值索引
 print(numpy.argmax(A)) #最大值索引
@@ -247,8 +248,8 @@ numpy.random.shuffle(A)
 print(A)
 A = numpy.partition(A, 9) #分成两部分，分别比9小和大
 print(A)
- 
-#=========================== Numpy Fancy Indexing =====================================
+
+#=========================== Numpy Fancy Indexing ===================
 A = numpy.arange(20) * 2 
 index = [3, 5, 9]
 print(A[index])
@@ -288,9 +289,8 @@ plt.scatter(x, siny) #散点图
 plt.show()
 
 
-
 #====================================================================
-#=========================== ML part1 KNN ===========================
+#=========================== ML KNN =================================
 '''
 K Nearest Neighbors K近邻。监督学习中的分类。
 
@@ -298,29 +298,183 @@ K Nearest Neighbors K近邻。监督学习中的分类。
 取距离目标最近的K个样本，那个类别最多，则目标就是那个类别。、
 
 可以认为是没有模型的算法，或者说训练集本身就是模型。
-
 '''
 
+import numpy as np
+from math import sqrt
+from collections import Counter
 
+#测试数据：
+from sklearn import datasets
+iris = datasets.load_iris() #鸢尾花数据集
+X_train = iris.data
+Y_train = iris.target
 
+#自己定义的KNN
+def KNN_classify(k, X_train, Y_train, x):
+	assert 1 <= k <= X_train.shape[0], 'k must be valid, less or equal to sample count.'
+	assert X_train.shape[0] == Y_train.shape[0], 'sample and result must equal.'
+	assert X_train.shape[1] == x.shape[0], 'feature number should be the same.'
+	
+	distances = [sqrt(np.sum((x_train - x)**2)) for x_train in X_train]
+	nearest = np.argsort(distances)
+	topK_y = [Y_train[i] for i in nearest[:k]]
+	votes = Counter(topK_y)
+	
+	return votes.most_common(1)[0][0]
+
+result = KNN_classify(6, X_train, Y_train, np.array([0, 0.4, 4, 2]))
+print(result)	
+	
+#scikit-learn中的KNN
+from sklearn.neighbors import KNeighborsClassifier
+KNN_classifier = KNeighborsClassifier(n_neighbors = 6)
+KNN_classifier.fit(X_train, Y_train) #x_train, y_train
+result = KNN_classifier.predict([[1, 0.4, 4, 2]])  #
+print(result)
+
+'''
+超参数：算法运行前决定的参数。
+数据归一化：防止结果被某个feature所主导，将所有数据映射到统一尺度。
+最值归一化(normalization)：把所有数据映射到0-1之间。x_scale = (x - x_min)/(x_max - x_min)。适用于有明显边界的情况。
+均值方差归一化(standardization)：归一到均值为0方差为1的分布中。没有明显边界的情况。x_scale = (x - x_mean)/ S, x_mean为均值，S为方差。
+'''
 
 
 #====================================================================
-#=========================== ML part2 线性回归 Linear Regression ====
+#=========================== ML 线性回归 Linear Regression ==========
+'''
+寻找最佳拟合的线性方程。
+
+假设最佳的拟合直线方程是y = a * x + b.
+则对于每个样本点x_i, 带入方程，都有预测值：y_ip = a * x_i + b. 每个样本点又有一个真值y_i.  
+我们希望预测值y_ip和真值y_i的差最小。
+
+目标：使 sum((y_i - y_ip)^2),i = 1 ~ m 最小。带入y_ip = a * x_i + b. 
+就有：sum((y_i - a * x_i + b)^2),i = 1 ~ m, 找到a和b的值，是前面的式子最小，x_i, y_i是训练样本，已知值。
+
+上面的函数叫损失函数（lost function）。于是目标就是损失函数尽可能小。
+（或者效用函数尽可能大）
+
+确定损失函数或者效用函数，获得机器学习的模型。参数学习的套路。
+
+最小二乘法问题：最小化误差的平方。
+a = sum((x_i - x_mean) * (y_i - y_mean))/sum((x_i - x_mean)^2).
+b = y_mean - a * x_mean.
+'''
+def linearRegression(x_train, y_train, x):
+	assert x_train.ndim == 1, 'Simple Linear Regressor can only solve single feature training data.'
+	assert len(x_train) == len(y_train), 'the size of x_train must be equal to the size of y_train.'
+	x_mean = np.mean(x_train)
+	y_mean = np.mean(y_train)
+
+	a = (x_train - x_mean).dot(y_train - y_mean) / (x_train - x_mean).dot(x_train - x_mean)
+	b = y_mean - a * x_mean
+	
+	y = a * x + b
+	return y
+
+result = linearRegression(np.array([1, 2, 3, 4]), np.array([2, 2.5, 3, 3.5]), 6)
+print(result)
+
+	
+#====================================================================
+#=========================== ML 梯度下降 Gradient Descent ===========
+'''
+梯度下降不是机器学习算法，是基于搜索的最优化方法。最小化损失函数。（梯度上升法，最大化效用函数）
+
+-eta * dJ/dtheta.、
+eta叫学习率，learning rate. yita是此算法的一个超参数。
+不是所有的函数都有唯一的极值点，所以梯度下降的初始位置是另一个超参数。
+'''
+
+plot_x = np.linspace(-1, 6, 141) #lost function (plot_x - 2.5)**2 - 1
+
+def dJ(theta):
+	return 2 * (theta - 2.5) #导数。
+
+def J(theta): #损失函数
+	return (theta - 2.5)**2 - 1
+
+eta = 0.1
+epsilon = 1e-8
+theta = 0.0
+theta_history = [theta]
+while True:
+	gradient = dJ(theta)
+	previous_theta = theta
+	theta = theta - eta * gradient
+	theta_history.append(theta)
+	if(abs(J(theta) - J(previous_theta)) < epsilon):
+		break
+
+print(theta, J(theta))
+plt.plot(plot_x, J(plot_x))
+plt.plot(np.array(theta_history), J(np.array(theta_history)), color = 'r', marker = '+')
+plt.show()
+	
+
+#====================================================================
+#=========================== ML PCA主成分分析与梯度上升 =============
+'''
+主成分分析，非监督学习，用于数据降维，可视化，去噪。
+
+例如一个二维样本空间，找到一个一维直线，使样本在直线上的间距最大。
+方差就是表示间距的一种方式，所以问题就变成找到一个轴，使样本映射后，方差最大。
+1. 样本均值归零(demean)，样本减去均值，相当于移动坐标轴。
+2. 要找到一个轴w = (w_1, w_2) 使得
+	Var(X_project) = 1/m * sum((X_i_project)^2)最大，i = 1 ~ m。
+3. 映射的关系就是投影，点乘。X_i_project = X_i.dot(w), 点乘。
+4. 于是问题就是求目标函数 Var(X_project) = 1/m * sum((X_i.doc(w))^2)的最大值。
+
+上面的式子中w是未知量。
 '''
 
 
+#====================================================================
+#=========================== ML SVM 支持向量机 ======================
+'''
+分类问题：
+例如在二维特征平面，决策边界不唯一。（线性可分）
+
+SVM想解决的问题是决策边界的泛化能力，也就是找到一条最优的决策边界，离两个类别最近的训练样本都最远。
+最近的样本就是支持向量。支 持向量所组成的两条线的距离叫margin = 2 * d.
+SVM就是最大化margin或者d。
+
+点(x, y)到直线 Ax + By + C = 0距离:  abs(Ax + By + C)/sqrt(A^2 + B^2)
+对于两个类中的任何点：距离应该都大于等于d, 或者小于等于-d
+
+支持向量机要求的就是A B C，AB可以用一个向量w表示。
+推导后的公式：
+y_i * (inv(w) * x_i + b) >= 1，这是条件。在满足之前条件下，对于任意支持向量x, 最小化w的模。
+
+Soft Margin SVM.加一个容错空间。
 '''
 
 
+#====================================================================
+#=========================== ML 决策树 Decision Tree ================
+'''
+每一个节点都是一个判断信息，每个叶子都是最后的结果或者分类。
 
+非参数学习算法，可以解决多分类问题。
+首先找到一个维度，然后找到该维度的一个阈值作为依据判断。
 
+信息熵：随机变量的不确定度，不确定度就越大，熵越大，反之。
+H = -sum(Pi * log(Pi)), i = 0~k. k类信息，Pi是每个信息所占比例。
+H最小值是0，说明数据约确定。
 
+二分类，H = -x * log(x) - (1 - x) * log(1 - x)
+'''
 
+import matplotlib.pyplot as plt
+import numpy as np
+def entropy(p):
+	return -p * np.log(p) - (1 - p) * np.log(1 - p)
+x = np.linspace(0.01, 0.99, 200)
+plt.plot(x, entropy(x))
+plt.show() #0.5是峰值，表示二分类概率是0.5是，不确定度越大。
 
-
-
-
-
-
-
+'''
+决策树在划分后应该使子类的信息熵降低。
+'''
