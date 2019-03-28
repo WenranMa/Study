@@ -1,4 +1,53 @@
 /*
+JS中区分大小写
+
+String：
+Number + String = String.
+parseInt() 字符串到Int
+parseFloat() 字符串到Float
+
+length属性
+charAt()方法
+indexOf()方法
+lastIndexOf()方法,一个字符串中有多个相同的字符
+subString()方法
+replace()方法
+split()方法，根据某个字符分割字符串，返回数组
+
+Array: typeOf(Array) is Ojbect.
+length属性
+push()方法，添加在最后
+pop()方法，弹出最后一个元素并返回
+shift()方法，删除第一个并返回
+
+delete Array[3], 删除值，并不给便数组长度
+splice()方法，删除某个元素，并给便数组长度
+
+concat()方法，合并数组并返回
+*/
+
+/*
+function:
+function setName() {}
+let setName = function() {}
+*/
+
+/*
+Object:
+let person = {
+	name: 'Wenran',
+	age: 31
+};
+person.color = 'Yellow';
+person['hobby'] = 'xxx';
+person.show = function(){}
+
+delete person.age, 返回true，表示删除成功。
+*/
+
+//=========================================================
+
+/*
 JS中有三种对象：
 1. user-defined object
 2. native object: like Array, Math, Date.
@@ -28,6 +77,9 @@ getElementById
 getElementsByTagName
 getElementsByClassName
 
+querySelector
+querySelectorAll
+
 childNodes 返回数组
 nodeType 返回数字，body.nodeType == 1.
 nodeType 一共12个值。
@@ -42,6 +94,17 @@ nodeValue:
 text node is just text.
 element node is null?
 
+childElementCount
+firstElementChild
+lastElementChild
+
+
+let a = document.createElement('li');
+let b = document.createTextNode('xxx');
+a.appendChild(b);
+
+removeChild()
+insertBefore()
 */
 
 
@@ -62,13 +125,10 @@ console.log(total);
 console.log(xxx);
 
 
-
 /*
 innerHTML 一个节点内的所有内容。
 createElement
 appendChild
-
-
 
 //===== 动画 =====
 element.style.position
@@ -80,4 +140,17 @@ element.style.right
 position有四个属性 static(默认) fixed relative absolute.
 如果是absolute 位置有 上下左右 决定，并且parent要是document，fixed或者absolute.
 
+*/
 
+
+/*
+事件处理
+a.onclick = function () {};
+a.addEventListener('click', function(){}, false/true);
+
+事件传播
+false: 由内向外（冒泡）。
+true: 由外向内（捕获）。
+
+event.stopPropagation(); 停止事件传播。
+*/
