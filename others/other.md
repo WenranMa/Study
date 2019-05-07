@@ -100,7 +100,15 @@ job: api-server
    instance 4: 5.6.7.8:5671
 ```
 
-自动化生成的标签和时间序列，当Prometheus拉取一个目标，会自动地把两个标签添加到度量名称的标签列表中，分别是：job目标所属的配置任务名称api-server。instance采样点所在服务host:port 
+自动化生成的标签和时间序列，当Prometheus拉取一个目标，会自动地把两个标签添加到度量名称的标签列表中，分别是：job目标所属的配置任务名称api-server。instance采样点所在服务host:port。
+
+Prometheus fundamentally stores all data as time series: streams of timestamped values belonging to the same metric and the same set of labeled dimensions. Every time series is uniquely identified by its metric name and a set of key-value pairs, also known as labels.
+
+The metric name must match the regex `[a-zA-Z_:][a-zA-Z0-9_:]*.`. The colons are reserved for user defined recording rules. They should not be used by exporters or direct instrumentation.
+
+Label names may contain ASCII letters, numbers, as well as underscores. They must match the regex `[a-zA-Z_][a-zA-Z0-9_]*.`. Label names beginning with `__` are reserved for internal use.
+
+Given a metric name and a set of labels, time series are frequently identified using this notation: `<metric name>{<label name>=<label value>, ...}`.
 
 ### metric type
 Prometheus客户端库提供四种核心度量标准类型。这些目前仅在客户端库中区分。Prometheus服务器尚未使用类型信息，并将所有数据展平为无类型时间序列。
@@ -157,7 +165,7 @@ httpReqs := prometheus.NewCounterVec(
         Name: "http_requests_total",
         Help: "How many HTTP requests processed, partitioned by status code and HTTP method.",
     },
-    []string{"code", "method"},
+    []string{"code", "method"}, //Labels.
 )
 //step2:注册容器
 prometheus.MustRegister(httpReqs)
@@ -243,7 +251,7 @@ cpusTemprature.WithLabelValues("cpu3").Set(temperature3)
 temps := prometheus.NewHistogram(prometheus.HistogramOpts{
     Name:    "pond_temperature_celsius",
     Help:    "The temperature of the frog pond.", // Sorry, we can't measure how badly it smells.
-    Buckets: prometheus.LinearBuckets(20, 5, 5),  // 5 buckets, each 5 centigrade wide.
+    Buckets: prometheus.LinearBuckets(20, 5, 5),  // 5 buckets, each 5 centigrade wide. Start with 20.
 })
 
 // Simulate some observations.
