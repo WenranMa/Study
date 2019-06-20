@@ -3,21 +3,21 @@
     服务器应当合理分配权限，一般只有一个管理员，其他人为普通用户。
 
 ### 1. 基本权限
-    权限位：`-rw-r--r-- `,一共10位，第一位为文件类型（- 文件，d 目录，l 软链接）。后面每三位为一组，第一组代表所有者u，第二组为所属组g，第三组为其他人o。
+    权限位：-rw-r--r-- ,一共10位，第一位为文件类型（- 文件，d 目录，l 软链接）。后面每三位为一组，第一组代表所有者u，第二组为所属组g，第三组为其他人o。
     r读，w写，x执行。
 
 #### 基本权限修改 chmod 命令：
-    `chmod [选项] 模式 文件名`
+    chmod [选项] 模式 文件名
 
     例如：
-    `chmod u+x readme.md` 给readme.md的所有者u加可执行权限。
-    `chmod g+w,o+w readme.md` 给readme.md的所属组g和其他人o加写权限。
-    `chmod u-w,g-w,o-w readme.md` 去掉readme.md的写权限。
-    `chmod u=rwx,g=rw readme.md` 另一种方式，直接复制。
-    `chomd a=rwx readme.md` a代表所有人。
+    chmod u+x readme.md 给readme.md的所有者u加可执行权限。
+    chmod g+w,o+w readme.md 给readme.md的所属组g和其他人o加写权限。
+    chmod u-w,g-w,o-w readme.md 去掉readme.md的写权限。
+    chmod u=rwx,g=rw readme.md 另一种方式，直接复制。
+    chomd a=rwx readme.md a代表所有人。
 
     用数字代表权限（二进制位）：r -- 4, w -- 2, x -- 1. rwxr-xr-x即755。
-    `chmod 755 readme.md`, 777为最高权限，644读写权限，755可执行权限，这几个比较常用。
+    chmod 755 readme.md, 777为最高权限，644读写权限，755可执行权限，这几个比较常用。
 
 #### 权限的作用
 
@@ -28,15 +28,15 @@
     对文件的最高权限是执行x，对目录的最高权限是写w。对目录可以赋的权限只有0，5，7，其他（1，4，6）没有意义。
 
 #### chown 命令
-    修改文件所有者 `chown user 文件名`。
-    `chown user:group 文件名`可以一次修改所有者和所属组。
+    修改文件所有者 chown user 文件名。
+    chown user:group 文件名可以一次修改所有者和所属组。
 
 #### chgrp 命令
-    修改文件所属组 `chgrp 组名 文件名`
+    修改文件所属组 chgrp 组名 文件名
     Linux会在添加用户时，会默认增加和用户名相同的组名。
 
 #### 文件默认权限 umask
-    `umask` 命令，结果022。可以修改mask值。
+    umask 命令，结果022。可以修改mask值。
 
     文件默认不能建立可执行文件，必须手动赋予。所以文件默认权限最大为666。默认权限和umask换算成字母后相减得到最后权限。文件最大权限666（-rw-rw-rw-），umask为022（-----w--w-），再相减为 -rw-r--r--。
 
@@ -47,10 +47,10 @@
     root把超级用户执行的命令赋予普通用户。sudo的操作对象是系统命令！
 
     visudo超级用户赋予权限的命令。visudo会打开/etc/sudoers文件，可以赋予普通用户命令。
-    例如：`visudo` 然后键入 `user1 ALL=/sbin/shutdown -r now`。保存退出。
+    例如：visudo 然后键入 user1 ALL=/sbin/shutdown -r now。保存退出。
     
-    `su`命令可以切换用户。
-    然后用普通用户，`sudo -l`可以拆看可以执行的命令（被赋予的）。
+    su命令可以切换用户。
+    然后用普通用户，sudo -l可以拆看可以执行的命令（被赋予的）。
     普通用户输入的命令前都要加sudo。
 
 
@@ -65,8 +65,8 @@
     进程管理主要是：判断服务器健康状态，查看系统中所有进程，杀死进程。
 
 #### 进程查看命令 ps
-    `ps aux` 查看系统所有进程，BSD操作系统格式。
-    `ps -le` 查看系统所有进程，Linux标准命令格式。(常用ps -ef|grep "xxx")
+    ps aux 查看系统所有进程，BSD操作系统格式。
+    ps -le 查看系统所有进程，Linux标准命令格式。(常用ps -ef|grep "xxx")
 
     ps命令输出：
     USER: 哪个用户产生。
@@ -82,13 +82,13 @@
     pstree, 显示进程树。
 
 #### top命令
-    `top [选项]` 每三秒钟刷新一次，默认按CPU占用率排序，可以用上面的几行查看进程是否健康。
+    top [选项] 每三秒钟刷新一次，默认按CPU占用率排序，可以用上面的几行查看进程是否健康。
 
     选项：
     -d 秒数，指定每隔几秒更新，默认3秒。
     -b 使用批处理输出，一般和-n合用。
     -n 次数，指定执行top命令次数。
-    `top -b -n 1 > top.log`
+    top -b -n 1 > top.log
 
     交互命令：
     shift+P 以CPU占用率排序。
@@ -118,49 +118,49 @@ Cache缓存，加快数据读取。
 #### 杀死进程
 
 - kill命令, 杀死单一进程
-    `kill -信号 进程号PID`
-    `kill -l` 显示信号，一共64个。
+    kill -信号 进程号PID
+    kill -l 显示信号，一共64个。
 
-    `kill -1 xxx` 重启。
-    `kill -9 xxx` 强制杀死。
-    `kill -15 xxx` 默认。
+    kill -1 xxx 重启。
+    kill -9 xxx 强制杀死。
+    kill -15 xxx 默认。
 
 - killall, 批量杀进程
-    `killall [选项][信号] 进程名`。
-    例如：`killall -i -9 httpd`，-i表示交互模式，系统会询问，-I表示忽略进程名字大小写。
+    killall [选项][信号] 进程名。
+    例如：killall -i -9 httpd，-i表示交互模式，系统会询问，-I表示忽略进程名字大小写。
 
 - pkill, 也是批量
-    `pkill [选项][信号] 终端`，例如：`pkill -9 -t pts/xxx` -t表示按终端杀死。
+    pkill [选项][信号] 终端，例如：pkill -9 -t pts/xxx -t表示按终端杀死。
 
     w命令，可以查看登录用户。
 
 #### 修改进程优先级
     cpu在同一个时钟周期只能运算一个指令。进程优先级决定每个进程的处理顺序。
-    `ps -le`可以显示进程优先级，PRI(priority)和NI(nice)两位都代表优先级。
-    用户只能修改NI，但系统最终生效的是PRI。`PRI = PRI + NI`。
+    ps -le可以显示进程优先级，PRI(priority)和NI(nice)两位都代表优先级。
+    用户只能修改NI，但系统最终生效的是PRI。PRI = PRI + NI。
     NI的范围是-20到19，普通用户只能修改0到19，root用户可以修改NI为负值。一般不需要用户去手动调整优先级。
 
     nice命令用于修改NI值，只能用户新启动的进程优先级，已经存在的不能改。
-    `nice [选项] 命令`。
-    举例：`nice -n -5 service httpd start`，-n表示NI值，后面跟一个进程的启动命令。
+    nice [选项] 命令。
+    举例：nice -n -5 service httpd start，-n表示NI值，后面跟一个进程的启动命令。
 
-    `renice [选项] PID`用于修改已经存在进程的优先级。
+    renice [选项] PID用于修改已经存在进程的优先级。
 
 ### 2. 工作管理（后台管理）
     工作（jobs）是和终端绑定的，当前终端只能管理当前终端的工作，不能管理其他终端。
 
     有两种方法将工作放入后台。
-    1. `命令 &`，可以放入后台的，必须是不用和用户交互的，比如tar命令。如果是top命令，则+&后会是暂停状态。
+    1. 命令 &，可以放入后台的，必须是不用和用户交互的，比如tar命令。如果是top命令，则+&后会是暂停状态。
     2. 命令执行过程中按ctrl+z, 这表示将程序在后台暂停。
 
-    jobs命令可以查看后台进程。`jobs -l` 可以显示PID号。方括号[xx]中是工作号，还有+表示最后一个放入后台的命令，-表示倒数第二个。
-    fg命令把进程恢复到前台，`fg %工作号`。bg命令把进程再放入后台，`bg %工作号`。
+    jobs命令可以查看后台进程。jobs -l 可以显示PID号。方括号[xx]中是工作号，还有+表示最后一个放入后台的命令，-表示倒数第二个。
+    fg命令把进程恢复到前台，fg %工作号。bg命令把进程再放入后台，bg %工作号。
     如果不加工作号，则按顺序执行(+,-在这里会变化，工作号不会)。
 
     如果终端关掉，所有该终端的后台进程也会关闭。使进程与终端不绑定的方法：
     1. 放入/etc/rc.local文件。系统启动时调用，不与终端绑定。
     2. 使用系统定时任务。
-    3. 使用nohup命令。`nohup 命令 &`。终端关闭，进程仍然存在。
+    3. 使用nohup命令。nohup 命令 &。终端关闭，进程仍然存在。
 
 ### 3. 拆看系统资源
     vmstat ??
@@ -171,7 +171,7 @@ Cache缓存，加快数据读取。
     at
     crontab
 
-    daemo守护进程
+    daemon守护进程
 
 
 
@@ -189,8 +189,8 @@ Cache缓存，加快数据读取。
     5. 图形模式
     6. 重启
 
-    `runlevel` 显示运行级别。
-    `init 级别号` 改变运行级别。
+    runlevel 显示运行级别。
+    init 级别号 改变运行级别。
 
 #### 服务分类
 
@@ -253,10 +253,6 @@ Cache缓存，加快数据读取。
     SMTP简单邮件传输协议：25
     POP3邮局协议3代：110
 
-    `netstat`命令。
-    -a 查看所有连接和端口。
-    -n 显示IP和端口号，不显示域名和服务器。
-
 #### DNS
     Domain Name System域名解析。早期用hosts文件进行ip和域名的对应，但是维护困难。
 
@@ -274,8 +270,102 @@ Cache缓存，加快数据读取。
     路由器是不同网段之间进行数据交换的。这个路由器就是网关。也可以用服务器搭建网关功能，所以网关也可以是服务器。
 
 ### 2.网络配置
+#### IP地址配置
+    ifconfig命令可以用于查看网络状态和配置IP地址，但只是一次生效，重启之后就会恢复。
+
+    ifconfig结果：
+    lo表示loopback网卡，本地地址127.0.0.1，这个网卡只是说明当前主机的网络协议正常。
+
+    eth0表示第一块网卡：
+    IP地址 inet 10.2.1.56
+    子网掩码 netmask 255.255.255.0
+    广播地址 broadcast 10.2.1.255
+    还有接收包，发送包的信息等。
+
+    ifconfig命令配置网络:
+    ifconfig etho 192.168.0.200 netmask 255.255.255.0
+
+#### linux网络配置文件
+    网卡配置文件位置：/etc/sysconfig/network-scripts/ifcfg-eth0
+
+    内容：
+    DEVICE=eth0 名字必须和文件匹配
+    TYPE=Ethernet
+    NAME="eth0"
+    ONBOOT=yes
+    BOOTPROTO=dhcp 也可以是none, static
+    IPV6INIT=no
+    PEERDNS=no
+
+    hostname命令可以用于查看主机名。
+    主机名文件：/etc/sysconfig/network
+
+    DNS文件：/etc/resolv.conf
+    nameserver:名称服务器。
 
 ### 3.网络命令
+#### 环境查看命令
+    ifconfig 只能查看ip和子网掩码和广播地址，不能看到网关和DNS。
+
+    ifup ifdown命令用于开启和关闭网卡。例如ifdown lo, ifup lo.
+
+    netstat命令：
+    -t TCP端口号。
+    -u UDP端口号。
+    -l 仅列出在监听状态的网络服务。
+    -a 查看所有连接和端口。
+    -n 显示IP和端口号，不显示域名和服务器。
+
+```
+例如 netstat -tuln
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 0.0.0.0:3306            0.0.0.0:*               LISTEN
+tcp        0      0 0.0.0.0:587             0.0.0.0:*               LISTEN
+tcp        0      0 0.0.0.0:9100            0.0.0.0:*               LISTEN
+tcp        0      0 0.0.0.0:111             0.0.0.0:*               LISTEN
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN
+tcp        0      0 0.0.0.0:20088           0.0.0.0:*               LISTEN
+tcp        0      0 0.0.0.0:8089            0.0.0.0:*               LISTEN
+tcp        0      0 127.0.0.1:199           0.0.0.0:*               LISTEN
+udp        0      0 0.0.0.0:68              0.0.0.0:*
+udp        0      0 0.0.0.0:111             0.0.0.0:*
+udp        0      0 0.0.0.0:161             0.0.0.0:*
+udp        0      0 127.0.0.1:323           0.0.0.0:*
+udp        0      0 127.0.0.1:25375         0.0.0.0:*
+udp        0      0 0.0.0.0:947             0.0.0.0:*
+udp        0      0 0.0.0.0:58773           0.0.0.0:*
+udp        0      0 0.0.0.0:10144           0.0.0.0:*
+```
+
+    再例如：
+    netstat -an | grep ESTABLISHED 显示建立的远程连接。
+    netstat -an | grep ESTABLISHED | wc -l 统计建立的远程连接。
+
+    netstat -rn 列出所有路由，最后一个就是网关。
+    route -n 与上面的命令一致。
+
+    nslookup 进行域名与IP的解析。
+    例如nslookup localhost, nslookup www.taobao.com。
+
+#### 网络测试命令
+    ping命令，ping ip或域名。-c 次数，可以限定ping的次数。
+    例如：ping www.taobao.com -c 10
+
+    telnet命令，telnet ip或域名 端口号，可以测试服务器端口是否开启。
+    例如：telnet www.taobao.com 80 （ctrl+] quit退出）。
+
+    traceroute命令，traceroute ip或域名，路由跟踪。
+    例如：traceroute www.google.com。
+
+    wget命令，下载命令。
+
+    tcpdump命令，用于抓包。
+    例如：tcpdump -i eth0 -nnX prot 21
+    -i 指定网卡。
+    -nn 将数据包中的域名和服务转为IP和端口。
+    -X 16进制显示。
+    port 端口号。
 
 ### 4.远程登录
 #### SSH
@@ -287,11 +377,11 @@ Cache缓存，加快数据读取。
 
     ssh命令：
     ssh 用户名@ip(或主机名)。用户名可以省略，表示用当前用户登录。exit命令退出。
-    第一ssh会提示下载主机的ssh公钥，存于`.ssh`目录下。
+    第一ssh会提示下载主机的ssh公钥，存于.ssh目录下。
 
     scp命令：
-    `scp [-r] 用户名@ip:文件路径 本地路径` 下载文件。
-    `scp [-r] 粉底文件 用户名@ip:文件路径` 上传文件。-r表示目录。
+    scp [-r] 用户名@ip:文件路径 本地路径 用于下载文件。
+    scp [-r] 粉底文件 用户名@ip:文件路径 用于上传文件。-r表示目录。
 
 
 
