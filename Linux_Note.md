@@ -57,8 +57,6 @@
 
 
 
-
-
 ---
 
 ## Linux 系统管理
@@ -118,8 +116,7 @@ Cache缓存，加快数据读取。
 ```
 
 #### 杀死进程
-
-- kill命令, 杀死单一进程
+    kill命令, 杀死单一进程
     kill -信号 进程号PID
     kill -l 显示信号，一共64个。
 
@@ -127,11 +124,11 @@ Cache缓存，加快数据读取。
     kill -9 xxx 强制杀死。
     kill -15 xxx 默认。
 
-- killall, 批量杀进程
+    killall, 批量杀进程
     killall [选项][信号] 进程名。
     例如：killall -i -9 httpd，-i表示交互模式，系统会询问，-I表示忽略进程名字大小写。
 
-- pkill, 也是批量
+    pkill, 也是批量
     pkill [选项][信号] 终端，例如：pkill -9 -t pts/xxx -t表示按终端杀死。
 
     w命令，可以查看登录用户。
@@ -165,17 +162,97 @@ Cache缓存，加快数据读取。
     3. 使用nohup命令。nohup 命令 &。终端关闭，进程仍然存在。
 
 ### 3. 查看系统资源
-    vmstat ??
-    free ??
+#### vmstat 命令
+    显示系统内存，磁盘和CPU信息
+    vmstat [刷新延时 刷新次数]，例如`vmstat 1 3`
+
+```
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+ 1  0 2896312 12693512 404924 2339520    0    0     0     5    0    0  0  0 99  1  0
+ 0  0 2896312 12694116 404924 2339560    0    0     0     0  226  414  0  0 100  0  0
+ 0  0 2896312 12693744 404924 2339560    0    0     0     8  208  369  0  0 100  0  0
+
+procs 进程信息字段：
+r: 等待运行的进程数，数字越大，系统越繁忙。
+b: 不能被唤醒的进程数，数字越大，系统越繁忙。
+
+memory 内存信息字段：
+swpd: 虚拟内存使用情况，单位KB。
+free: 空闲的内存。
+buff: 缓冲的内存。加速数据写入硬盘。
+cache: 缓存的内存。加速数据从硬盘的读取。
+
+swap 交换分区：
+si: 从磁盘交换到内存的数据量，单位KB。
+so: 从内存到磁盘的量。两个数越大，系统性能越差。
+
+io 磁盘读写信息字段：
+bi: 从块设备读入数据的总量，单位是块。
+bo: 写到块设备的数据量。两个数越大，系统IO越繁忙。
+
+system 系统信息字段：
+in: 每秒被中断的进程次数。
+cs: 每秒进行的事件切换次数。两个数越大，系统越繁忙。
+
+cpu 处理器信息段：
+us: 非内核进程消耗CPU运行时间百分比。
+sy: 内核进程。
+id: 空闲CPU百分比。越大系统越闲。
+wa: 等待IO。
+st: 被虚拟机盗用。
+```
+
+#### dmesg 命令
+    显示内核自检信息
+    demesg | grep CPU
+
+#### free 命令
+    查看内存使用状态
+    free [-b -k -m -g] 选项表示不同的单位，字节，KB，MB，GB。
+
+#### uptime 命令
+    其实就是top命令的第一行。
+
+#### uname 命令
+    查看内核相关信息。
+    uname [-a -r -s] 分别为所有信息，内核版本，内核名称。
+
+#### lsof 命令
+    列出进程打开或使用的文件信息。
+    lsof | more 显示所有进程调用的文件。
+    lsof /sbin/init 查看某个文件被哪个进程调用。
+    lsof -c 进程名，如lsof -c httpd 查看httpd进程调用了哪些文件。
+    lsof -u 用户名，如lsof -u root 查看root用户的进程调用文件。
 
 ### 4. 系统定时任务
- 
-    at
-    crontab
+#### at 单次任务
+    atd有访问控制，/etc/目录下有at.allow文件白名单中的用户可以使用at命令。
+    或这at.deny黑名单中的用户不能使用at。
+    或者都有但at.allow优先级高。
+    如果都没有，则只有root用户可用。
 
-    daemon守护进程
+    at [选项] 时间
+    -c 工作号：显示at工作的实际内容。
+    时间格式：
+    HH:MM
+    HH:MM YYYY-MM-DD   , 02:30 2019-07-01
+    HH:MM [month][date], 02:30 July 25
+    HH:MM + [minutes|hours|days|weeks], now + 2 minutes
+
+    at+时间之后会进入at交互模式以输入具体要执行的任务。
+    例如：
+    at now + 2 minutes
+    at> /home/wrma/hello.sh
+
+    atq命令可以查看当前服务器at的工作。
+
+#### crontab 循环定时任务
+    与at一样有cron.allow白名单和cron.deny黑名单。
 
 
+
+    守护进程？？？？
 
 
 ---
