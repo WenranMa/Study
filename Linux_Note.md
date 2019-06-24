@@ -85,6 +85,14 @@
 
     源码包安装的服务一般在/usr/local/下。
 
+#### 独立服务启动
+    RPM包安装的服务会在/etc/init.d/目录下有启动脚本。
+    可以通过/etc/init.d/服务名 start|stop|status|restart 来操作。
+
+    也可以通过service命令，（service是redhat系列才有service命令）
+    service 服务名 start|stop|status|restart。
+    不可以启动源码包安装服务。
+
 ---
 
 ## Linux 权限管理
