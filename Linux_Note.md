@@ -93,6 +93,14 @@
     service 服务名 start|stop|status|restart。
     不可以启动源码包安装服务。
 
+#### 独立服务自启动
+    chkcofig [--level 运行级别] 服务名 [on|off]
+    表示设定运行级别。但是服务的启动状态为不确定，下次开机后自启动。
+    比如 chkconfig --level 2345 httpd on
+    chkconfig httpd off 关闭自启动。
+
+    可以修改/etc/rc.d/rc.local文件。可以将服务的启动命令放在改文件中。
+
 ---
 
 ## Linux 权限管理
