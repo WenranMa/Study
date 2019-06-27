@@ -465,6 +465,8 @@ Nginx是一款轻量级的Web服务器、反向代理服务器，由于它的内
 ## Docker
 
 Docker不是虚拟机。但可以理解为轻量的虚拟机，把一个应用程序放在一个独立的环境里运行。
+Docker可以让开发者打包他们的应用以及依赖包到一个轻量级、可移植的容器中，然后发布到任何流行的Linux 机器上，也可以实现虚拟化。
+容器是完全使用沙箱机制，相互之间不会有任何接口（类似iPhone的app）,更重要的是容器性能开销极低。
 
 ![Docker Architecture](../img/architecture_docker.svg)
 
@@ -494,6 +496,48 @@ Docker不是虚拟机。但可以理解为轻量的虚拟机，把一个应用�
 `docker cp` 在host和container之间拷贝文件。
 
 `docker commit` 保存改动为新的image。
+
+#### Dockerfile
+    FROM alpine:latest
+    MAINTAINER wrma
+    CMD echo "Hello docker!"
+
+    docker build -t hello_docker .
+    docker images hello_docker
+    docker run hello_docker
+
+    第二个例子：
+    mkdir docker_file
+    cd docker_file
+    touch Dockerfile
+    vi Dockerfile
+
+    FROM ubuntu
+    MAINTAINER wrma
+    RUN sed -i 's/archive.ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list
+    RUN apt-get update
+    RUN apt-get install -y nginx
+    COPY index.html /var/www/html
+    ENTRYPOINT ["/usr/sbin/nginx", "-g", "daemon off;"]
+    EXPOSE 80
+
+    touch index.html
+    vi index.html  随便填点什么
+    docker build -t wrma/hello_nginx .
+    docker run -d -p 80:80 wrma/hello_nginx
+
+    语法：
+    FROM base image
+    RUN 执行命令
+    ADD 添加文件
+    COPY 拷贝文件
+    CMD 执行命令
+    EXPOSE 暴露端口
+
+    镜像分层，dockerfile中每一行都是一个新层
+
+#### Volume
+    提供独立于容器之外的持久化存储。
 
 ---
 
