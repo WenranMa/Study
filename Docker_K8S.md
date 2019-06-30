@@ -119,3 +119,23 @@
 
 ### K8S
     容器的编排管理平台，微服务支撑平台，可移植云平台。
+
+    kubectl get nodes命令
+    kubectl create -f hello-service.yml --record 服务部署
+    kubectl describe [service]
+    kubectl run 命令 创建容器
+    kubectl create -f hello-deployment.yml --record 
+    kubectl logs 
+
+### K8S架构
+    有一组节点（node）组成，node可以是物理服务器，也可以是虚拟机。
+    每个node上都有node组件，包括kubelet，kube-proxy。
+    安装了master组件的节点是master节点。
+    etcd是整个集群的主数据库。
+    kutectl是超级命令行工具。
+
+#### master组件
+    所有的控制命令到传递给maste组件并在上面执行。
+    K8S集群至少有一套master组件。
+    Scheduler, Controller Manager, API Server, ETCD.
+    API Server是核心。
