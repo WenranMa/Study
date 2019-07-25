@@ -6,14 +6,28 @@
 
 Kafka是分布式发布-订阅消息系统，在Kafka集群中，没有“中心主节点”的概念，集群中所有的服务器都是对等的，因此，可以在不做任何配置的更改的情况下实现服务器的的添加与删除，同样的消息的生产者和消费者也能够做到随意重启和机器的上下线。
 
+
+慕课：
+
+物理概念：
+
+
+逻辑概念：
+
+
 #### Kafka术语介绍
 1. 消息生产者Producer，是消息的产生的源头，负责生成消息并发送到Kafka服务器上。
 2. 消息消费者Consumer，是消息的使用方，负责消费Kafka服务器上的消息。
-3. 主题Topic，由用户定义并配置在Kafka服务器，用于建立生产者和消息者之间的订阅关系：生产者发送消息到指定的Topic下，消息者从这个Topic下消费消息。
-4. 消息分区Partition，一个Topic下面会分为很多分区，例如：“kafka-test”这个Topic下可以分为6个分区，分别由两台服务器提供，那么通常可以配置为让每台服务器提供3个分区，假如服务器ID分别为0、1，则所有的分区为0-0、0-1、0-2和1-0、1-1、1-2。partition是Topic物理上的分组，一个topic可以分为多个partition，每个partition是一个有序的队列。partition中的每条消息都会被分配一个有序的id（offset）。
-5. Broker：即Kafka的服务器，用户存储消息，Kafa集群中的一台或多台服务器统称为broker。
+3. 主题Topic，逻辑概念，由用户定义并配置在Kafka服务器，用于建立生产者和消息者之间的订阅关系：生产者发送消息到指定的Topic下，消息者从这个Topic下消费消息。
+4. 消息分区Partition，一个Topic下面会分为很多分区，物理概念，例如：“kafka-test”这个Topic下可以分为6个分区，分别由两台服务器提供，那么通常可以配置为让每台服务器提供3个分区，假如服务器ID分别为0、1，则所有的分区为0-0、0-1、0-2和1-0、1-1、1-2。partition是Topic物理上的分组，一个topic可以分为多个partition，每个partition是一个有序的队列。partition中的每条消息都会被分配一个有序的id（offset）。
+5. Broker：即Kafka的服务器（节点），物理概念，用户存储消息，Kafa集群中的一台或多台服务器统称为broker。
 6. 消费者分组Group，用于归组同类消费者，在Kafka中，多个消费者可以共同消息一个Topic下的消息，每个消费者消费其中的部分消息，这些消费者就组成了一个分组，拥有同一个分组名称，通常也被称为消费者集群。
 7. Offset：消息存储在Kafka的Broker上，消费者拉取消息数据的过程中需要知道消息在文件中的偏移量，这个偏移量就是所谓的Offset。
+
+8. Replication: partition的副本，可以有多个，之间的数据是一样的。
+9. Replication Leader: 多个副本需要一个Leader与producer和consumer交互。
+10. ReplicaManager: 
+
 
 #### Broker
 1. Message在Broker中通Log追加的方式进行持久化存储。并进行分区（patitions)。
@@ -41,6 +55,35 @@ Kafka是分布式发布-订阅消息系统，在Kafka集群中，没有“中心
 2. 在kafka中，我们可以认为一个group是一个“订阅者”，一个Topic中的每个partions，只会被一个“订阅者”中的一个consumer消费，不过一个consumer可以消费多个partitions中的消息（消费者数据小于Partions的数量时）。注意：kafka的设计原理决定，对于一个topic，同一个group中不能有多于partitions个数的consumer同时消费，否则将意味着某些consumer将无法得到消息。
 3. 一个partition中的消息只会被group中的一个consumer消费。每个group中consumer消息消费互相独立。
 
+
+## Kafka 结构
+
+上游producer，下游consumer，中间是kafka集群。
+横向有connector连接DB，stream processors与其他app做流式交互。
+所以Kafka会有 producer API, consumer API, connectors API, Streams API
+
+### zookeeper
+Kafka强依赖与zookeeper, borker的信息，topic，partition的分布信息都存在zookeeper上。
+
+
+### Kafka消息结构
+Offset
+Length
+CRC32
+Magic
+attributes
+Timestamp
+Key Length
+Key
+Value Length
+Value
+
+### Kafka 特点
+
+
+
+
+
 #### Kafka的持久化
 1. 一个Topic可以认为是一类消息，每个topic将被分成多partition(区)，每个partition在存储层面是append log文件。任何发布到此partition的消息都会被直接追加到log文件的尾部，每条消息在文件中的位置称为offset（偏移量），partition是以文件的形式存储在文件系统中。
 2. Logs文件根据broker中的配置要求,保留一定时间后删除来释放磁盘空间。
@@ -61,6 +104,13 @@ Kafka是分布式发布-订阅消息系统，在Kafka集群中，没有“中心
 3. exactly once:消息只会发送一次。kafka中并没有严格的去实现，我们认为这种策略在kafka中是没有必要的。
 
 注：通常情况下"at-least-once"是我们首选。(相比at most once而言，重复接收数据总比丢失数据要好)。
+
+
+## 零拷贝提高性能
+
+
+
+
 
 ---
 
