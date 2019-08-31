@@ -70,6 +70,9 @@
     docker tag [imagename] [username] 给镜像打tag
     docker push [imagename] 提交打registry
 
+    docker run -d 后台运行
+    docker exec 在运行的容器中运行命令 （-i，-t）
+
 ## Dockerfile 
     可以用dockerfile来创建镜像。
 
@@ -179,8 +182,13 @@ The COPY instruction copies new files or directories from `<src>` and adds them 
 
 
 
+docker网络
+1. Bridge  端口映射
+2. Host
+3. None
 
----
+docker run -p 主机端口:容器端口
+docker run -P 所有端口随机映射
 
 
 This port remapping of 4000:80 demonstrates the difference between EXPOSE within the Dockerfile and what the publish value is set to when running docker run -p.
