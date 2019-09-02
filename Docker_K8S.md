@@ -180,8 +180,6 @@ COPY has two forms:
 The COPY instruction copies new files or directories from `<src>` and adds them to the filesystem of the container at the path `<dest>`.
 
 
-
-
 docker网络
 1. Bridge  端口映射
 2. Host
@@ -194,6 +192,54 @@ docker run -P 所有端口随机映射
 This port remapping of 4000:80 demonstrates the difference between EXPOSE within the Dockerfile and what the publish value is set to when running docker run -p.
 In later steps, map port 4000 on the host to port 80 in the container and use http://localhost.
 
+### Multi stage build
+
+docker rm $(docker ps -aq) 删除所有container
+docker rmi $(docker images -q) 删除所有image
+
+exmaple:
+```bash
+# Stage 1:
+
+# Start from the golang alpine as base image
+FROM golang:1.11-alpine as builder
+
+# Set the Working Directory inside the container
+WORKDIR /go/src/app
+
+# Copy the source from the current directory to the Working Directory inside the container
+COPY . .
+
+# Build the app spec-pusher
+RUN go build
+
+# enter point to the program
+# ENTRYPOINT ["/go/src/spec-pusher/spec-pusher"]
+# CMD []
+
+# Stage 2:
+
+# Start from alpine system as base image:
+FROM alpine:latest
+
+# Add Maintainer Info
+LABEL maintainer="Wenran Ma <mawenran@gmail.com>"
+
+# Set the Working Directory inside the container
+WORKDIR /root
+
+# Copy binary from previous stage to working dir
+COPY --from=builder /go/src/app ./
+
+# Set permission, no need actually
+# RUN chmod +x /root/spec-pusher/spec-pusher
+
+# Entry point
+ENTRYPOINT ["/root/app"]
+
+# For pass arguments, only for test.
+CMD []
+```
 
 
 
