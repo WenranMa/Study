@@ -283,6 +283,54 @@ select sum(A) from DS where time>? group by B，C order by C limit 2[groupby]
 没有维度分组的场景使用 timeseries，单维度分组查询的场景使用 topN，多维度分组查询场景使用 groupby。
 由于 groupby 并不会将 limit 下推(Druid 新版本进行了优化，虽然可以下推，但是对于指标的排序是不准确的)，所以单维度的分组查询，尽量用 topN 查询。
 
+
+
+
+Druid.
+
+Slice and dice
+
+Segment
+列存储columnar storage. ??
+Dictionary Encoding
+Inverted Indexes
+
+Rollup 预聚合
+segment granularity  !!
+Query granularity  !!
+
+Ingestion    middle manager负责
+streaming ingestion
+    kafka indexing service.
+    kinesis…
+    tranquility
+Batch ingestion
+    Native ?
+    Hadoop
+
+Append only ??
+exactly once??
+
+外部依赖：
+Deep storage
+    s3  HDFS
+Metadata storage
+    mysql   postgresql
+Zookeeper
+存储 计算分离
+
+Middle manager 数据摄入
+Historical Node
+Brocker Node 响应client query, return result
+Coordinator 管理 historical 节点
+Overlord 管理 Middle manager 节点
+
+
+
+
+
+
+
 ---
 
 ## Prometheus

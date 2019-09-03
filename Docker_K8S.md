@@ -77,13 +77,11 @@
     可以用dockerfile来创建镜像。
 
     FROM alpine:latest
-    MAINTAINER wrma
     CMD echo "Hello docker!"
 
     docker build -t hello_docker .
     docker images hello_docker
     docker run hello_docker
-
 
     第二个例子：
     mkdir docker_file
@@ -92,7 +90,6 @@
     vi Dockerfile
 
     FROM ubuntu
-    MAINTAINER wrma
     RUN sed -i 's/archive.ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list
     RUN apt-get update
     RUN apt-get install -y nginx
@@ -114,8 +111,6 @@
     EXPOSE 暴露端口
 
     镜像分层，dockerfile中每一行都是一个新层
-
-
 
 The docker build command builds an image from a Dockerfile and a context. The build’s context is the set of files at a specified location PATH or URL. The PATH is a directory on your local filesystem. The URL is a Git repository location.
 
@@ -241,8 +236,6 @@ ENTRYPOINT ["/root/app"]
 CMD []
 ```
 
-
-
 ---
 
 ## K8s
@@ -265,6 +258,8 @@ CMD []
     kubectl create -f hello-deployment.yml --record 
     kubectl logs 
 
+Kubernetes 中部署的最小单位是 pod，而不是 Docker 容器。
+
 ### K8S架构
     有一组节点（node）组成，node可以是物理服务器，也可以是虚拟机。
     每个node上都有node组件，包括kubelet，kube-proxy。
@@ -276,4 +271,80 @@ CMD []
     所有的控制命令到传递给maste组件并在上面执行。
     K8S集群至少有一套master组件。
     Scheduler, Controller Manager, API Server, ETCD.
-    API Server是核心。
+
+API Server是核心。是集群控制的唯一入口，是Rest API的核心组件。
+
+Scheduler通过API servert的watch接口监听新建Pod副本信息，并通过调度算法为Pod选择一个合适的Node。
+检索复合Pod要求的Node列表。之后会绑定Pod到Node，然后将状态写入ETCD。
+
+ControllerManager，没中资源都会有相应controller, controller manager就是管理这些controller。
+
+ETCD 默认与Master在同一个Node上。
+
+#### Node
+K8s集群真正的工作负载节点。
+
+Pod被分配到某个Node上。K8s通过node controller对node资源进行管理，支持动态删除和添加node。
+
+每个node上有Kubelet 和 Kube proxy。
+
+Kubelet，服务进程组件，本身是非容器的组件。Pod的创建，启停等管理服务。
+
+Kube proxy，Service抽象概念的实现，将Service的请求分发到Pod上。
+
+### K8s 概念
+K8s Object
+Kubernetes对象模型：
+
+静态属性：一般用YML文件描述。
+    Kind: Pod/Service/Deployment/....
+    Metedata: Name, Namespace, Labels...
+    Spec: Replicas, selector, ...
+
+操作方法：API kubectl
+    Create/Get/Update/Delete
+
+动态信息：ETCD
+    Status
+
+
+---
+
+virtualbox
+brew cask install virtualbox
+
+minikube:
+
+    curl -Lo minikube https://storage.googleapis.com/minikube/releases/v1.3.0/minikube-darwin-amd64 && chmod +x minikube && sudo cp minikube /usr/local/bin/ && rm minikube
+
+
+
+
+Minikube自带了Docker引擎，所以我们需要重新配置客户端，让docker命令行与Minikube中的Docker进程通讯：
+`eval $(minikube docker-env)`
+
+复制代码在运行上面的命令后，再运行 docker image ls 时只能看到一些Minikube自带的镜像，就看不到我们刚才构建的 docker-demo:0.1 镜像了。所以在继续之前，要重新构建一遍我们的镜像。
+
+
+
+$ docker-machine env --help
+kubectl logs ...
+
+
+#### Note
+
+When you override the default Entrypoint and Cmd, these rules apply:
+
+1. If you do not supply command or args for a Container, the defaults defined in the Docker image are used.
+2. If you supply a command but no args for a Container, only the supplied command is used. The default EntryPoint and the default Cmd defined in the Docker image are ignored.
+3. If you supply only args for a Container, the default Entrypoint defined in the Docker image is run with the args that you supplied.
+4. If you supply a command and args, the default Entrypoint and the default Cmd defined in the Docker image are ignored. Your command is run with your args.
+
+Here are some examples:
+
+|  Image Entrypoint | Image Cmd | Container command | Container args | Command run    |
+| ----------------- | --------- | ----------------- | -------------- | -------------- |
+|    [/ep-1]        | [foo bar] | not set           | not set        | [ep-1 foo bar] |
+|    [/ep-1]        | [foo bar] | [/ep-2]           | not set        | [ep-2]         |
+|    [/ep-1]        | [foo bar] | not set           | [zoo boo]      | [ep-1 zoo boo] |
+|    [/ep-1]        | [foo bar] | [/ep-2]           | [zoo boo]      | [ep-2 zoo boo] |
