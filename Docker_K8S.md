@@ -341,3 +341,35 @@ Minikube自带了Docker引擎，所以我们需要重新配置客户端，让doc
 ---
 
 # Helm Charts
+
+Tiller, the server portion of Helm, typically runs inside of your Kubernetes cluster. But for development, it can also be run locally, and configured to talk to a remote Kubernetes cluster.
+
+kubectl -n kube-system get pods|grep tiller
+
+helm create test
+helm会自动建立test目录，生成tree
+├── Chart.yaml #Chart本身的版本和配置信息
+├── charts #依赖的chart
+├── templates #配置模板目录
+│   ├── NOTES.txt #helm提示信息
+│   ├── _helpers.tpl #用于修改kubernetes objcet配置的模板
+│   ├── deployment.yaml #kubernetes Deployment object
+│   └── service.yaml #kubernetes Serivce
+└── values.yaml #kubernetes object configuration
+
+Templates目录下是yaml文件的模板，遵循Go template语法。
+其中的Values是在values.yaml文件中定义.
+
+
+`helm install --dry-run --debug <chart_dir>`
+查看验证chart配置。该输出中包含了模板的变量配置与最终渲染的yaml文件
+
+`helm install .`最终部署。
+
+
+我们可以修改Chart.yaml中的helm chart配置信息，然后使用下列命令将chart打包成一个压缩文件。
+
+`helm package .`
+
+`helm delete xxx`
+
