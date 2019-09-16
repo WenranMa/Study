@@ -307,3 +307,84 @@ Logstash 主要强在Filter.
 2. Date: 字符串类型转换成时间戳类型。
 3. Mutate: CRUD.
 
+### 案例
+PacketBeat + LogStash 负责数据的抓取。
+Kibana + ElasticSearch 负责数据分析。
+
+两个ElasticSearch 集群，prd和monitor，prd是被监控对象。（如果是一个集群演示会出现抓包死循环）
+
+1.启动Production ElasticSearch 集群。使用默认配置。
+
+    bin/elasticsearch
+    bin/elasticsearch -Ehttp.port=9201 -Epath.data=node2
+    elasticsearch至少启动两个节点。否则Kibana启动会失败。??
+
+2.启动Production Kibana。
+
+    bin/kibana
+
+3.启动Monitor ElasticSearch 集群。
+
+    bin/elasticsearch -Ecluster.name=monitor -Ehttp.port=8200 —Epath.data=monitor
+
+4.启动Monitor Kibana。
+
+    bin/kibana -e http://127.0.0.1:8200 -p 8601
+
+5.LogStash配置及启动。
+
+```json
+input {
+  beats {
+    port => 5044
+  }
+}
+
+filter {
+    if "search" in [request]{
+        grok {
+            match => { "request" => ".*\n\{(?<query_body>.*)"}
+        }
+        grok {
+            match => { "path" => "\/(?<index>.*)\/_search"}
+        }
+    }
+    if [index] {
+    } else {
+        mutate {
+            add_field  => { "index" => "All" }
+        }
+    }
+
+    mutate {
+        update  => { "query_body" => "{%{query_body}"}}
+    }
+
+output {
+  if "search" in [request]{
+        elasticsearch {
+        hosts => "127.0.0.1:8200"
+        }
+   }
+}
+```
+
+
+6.PacketBeat配置及启动。
+
+```yaml
+packetbeat.interfaces.device: lo0
+packetbeat.protocols:
+- type: http
+  ports: [9200]
+  send_request: true
+
+output.logstash:
+  hosts: ["127.0.0.1:5044"]
+```
+
+在Monitor Kibana中:
+
+    GET _cat/indices 就可以看到logstash的索引。
+
+可以创建Index pattern，然后通过命名找到已有index. Pattern创建完成后，可以在discover中看到数据展示。
