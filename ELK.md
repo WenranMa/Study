@@ -52,6 +52,13 @@ discovery.zen.ping.unicast.hosts: ["127.0.0.1"]
 - Field 字段，文档属性
 - Query DSL 查询语言
 
+mapping 类似schema.
+
+Script ？？？？
+
+
+---
+
 ### Kibana
 bin/kibana运行
 
@@ -124,6 +131,8 @@ GET account/employee/_search
   }
 }
 ```
+
+---
 
 ### Beats
 Light Weight Data Shipper
@@ -289,6 +298,8 @@ output.console:
 }
 ```
 
+---
+
 ### Logstash
 Data Shipper（对比beats是light weight data shipper）
 
@@ -306,6 +317,8 @@ Logstash 主要强在Filter.
 1. Grok: 基于正则。将非结构化的数据做结构化处理。
 2. Date: 字符串类型转换成时间戳类型。
 3. Mutate: CRUD.
+
+---
 
 ### 案例
 PacketBeat + LogStash 负责数据的抓取。
@@ -368,7 +381,6 @@ output {
    }
 }
 ```
-
 
 6.PacketBeat配置及启动。
 
