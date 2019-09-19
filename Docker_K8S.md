@@ -373,3 +373,27 @@ Templates目录下是yaml文件的模板，遵循Go template语法。
 
 `helm delete xxx`
 
+
+Statefulset????
+
+命令：
+
+    helm status druid-test
+
+    kubectl describe pod --namespace druid-dev-test spec-pusher-deployment-5cbb7
+
+    kubectl exec --namespace druid-dev-test spec-pusher-deployment-5cbb7849b7-nxbql ls /sbin
+
+    kubectl describe ingress --namespace druid-dev-test druid-test-router
+
+    helm upgrade --namespace "druid-dev-test" "druid-test" --debug ./druid-chart -f ./druid-chart/values.dev.yaml
+
+    kubectl logs -f --namespace druid-dev-test spec-pusher-deployment-5cbb7849b7-nxbql
+
+    https://kubernetes.io/docs/reference/kubectl/cheatsheet/
+
+    kubectl get statefulset --namespace druid-dev-test druid-test-historical
+
+
+helm 2.9 statefulset delete.....
+
