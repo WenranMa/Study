@@ -340,6 +340,45 @@ Minikube自带了Docker引擎，所以我们需要重新配置客户端，让doc
 
 ---
 
+#### volumes
+When a Container crashes, kubelet will restart it, but the files will be lost - the Container starts with a clean state.
+
+When running Containers together in a Pod it is often necessary to share files between those Containers.
+
+The Kubernetes Volume abstraction solves both of these problems.
+
+A Kubernetes volume has an explicit lifetime - the same as the Pod that encloses it. Consequently, a volume outlives any Containers that run within the Pod, and data is preserved across Container restarts. Of course, when a Pod ceases to exist, the volume will cease to exist, too.
+
+Kubernetes supports many types of volumes, and a Pod can use any number of them simultaneously.
+
+At its core, a volume is just a directory, possibly with some data in it, which is accessible to the Containers in a Pod. To use a volume, a Pod specifies what volumes to provide for the Pod (the `.spec.volumes` field) and where to mount those into Containers (the `.spec.containers.volumeMounts` field).
+
+any volumes are mounted at the specified paths within the image. Volumes can not mount onto other volumes or have hard links to other volumes. Each Container in the Pod must independently specify where to mount each volume.
+
+#### type of volumes
+##### awsElasticBlockStore
+An awsElasticBlockStore volume mounts an Amazon Web Services (AWS) EBS Volume into your Pod. Unlike emptyDir, which is erased when a Pod is removed, the contents of an EBS volume are preserved and the volume is merely unmounted. This means that an EBS volume can be pre-populated with data, and that data can be “handed off” between Pods.
+
+Caution: You must create an EBS volume using aws ec2 create-volume or the AWS API before you can use it.
+
+There are some restrictions when using an awsElasticBlockStore volume:
+
+- the nodes on which Pods are running must be AWS EC2 instances
+- those instances need to be in the same region and availability-zone as the EBS volume
+- EBS only supports a single EC2 instance mounting a volume
+
+
+#### Persistent Volumes
+two new API resources: `PersistentVolume` and `PersistentVolumeClaim`.
+
+A PersistentVolume (PV) is a piece of storage in the cluster that has been provisioned by an administrator or dynamically provisioned using Storage Classes. It is a resource in the cluster just like a node is a cluster resource. PVs are volume plugins like Volumes, but have a lifecycle independent of any individual pod that uses the PV.
+
+A PersistentVolumeClaim (PVC) is a request for storage by a user. It is similar to a pod. Pods consume node resources and PVCs consume PV resources. Pods can request specific levels of resources (CPU and Memory). Claims can request specific size and access modes (e.g., can be mounted once read/write or many times read-only).
+
+While PersistentVolumeClaims allow a user to consume abstract storage resources, it is common that users need PersistentVolumes with varying properties, such as performance, for different problems. Cluster administrators need to be able to offer a variety of PersistentVolumes that differ in more ways than just size and access modes, without exposing users to the details of how those volumes are implemented. For these needs there is the StorageClass resource.
+
+---
+
 # Helm Charts
 
 Tiller, the server portion of Helm, typically runs inside of your Kubernetes cluster. But for development, it can also be run locally, and configured to talk to a remote Kubernetes cluster.
@@ -396,4 +435,9 @@ Statefulset????
 
 
 helm 2.9 statefulset delete.....
+
+
+
+
+
 
