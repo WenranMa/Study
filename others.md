@@ -328,9 +328,6 @@ Overlord 管理 Middle manager 节点
 
 
 
-
-
-
 ---
 
 ## Prometheus
@@ -589,9 +586,7 @@ S3
 ROUTE 53
 
 
-
 ---
-
 
 
 ## Presto
@@ -599,3 +594,18 @@ ROUTE 53
 Hive
 
 Presto
+
+presto cli
+```bash
+presto --server kpr-s0000230f-presto-master.amazonaws.com:9106 --catalog fw --schema ax_fact --http-proxy x.x.x.x:portn
+```
+
+
+---
+
+## InfluxDB
+
+influxd启动
+
+influx -h
+precision RFC3339 显示具体时间
