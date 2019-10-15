@@ -338,6 +338,14 @@ Minikube自带了Docker引擎，所以我们需要重新配置客户端，让doc
 
 复制代码在运行上面的命令后，再运行 docker image ls 时只能看到一些Minikube自带的镜像，就看不到我们刚才构建的 docker-demo:0.1 镜像了。所以在继续之前，要重新构建一遍我们的镜像。
 
+The command minikube docker-env returns a set of Bash environment variable exports to configure your local environment to re-use the Docker daemon inside the Minikube instance.
+
+Passing this output through eval causes bash to evaluate these exports and put them into effect.
+
+You can review the specific commands which will be executed in your shell by omitting the evaluation step and running minikube docker-env directly. However, this will not perform the configuration – the output needs to be evaluated for that.
+
+eval "$(docker-machine env -u)"  undo!
+
 ---
 
 #### volumes
