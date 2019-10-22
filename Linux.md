@@ -833,3 +833,9 @@ iTerm2 可以通过 「Preferences -> Profiles -> Keyboard Behavior -> Left opti
 
 
 vim是vi的增强版本。
+
+
+---
+
+
+`time curl -v http://influxdb.pqm.dev.aws.fwmrm.net/ping`
