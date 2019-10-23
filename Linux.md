@@ -317,9 +317,9 @@ $ 调用变量
 
 ---
 
-### 命令及工具
+## 命令及工具
 
-#### cat
+### cat
 cat主要有三大功能:
 
 - 一次显示整个文件。`cat filename`
@@ -344,190 +344,99 @@ cat主要有三大功能:
 `cat filename |grep -v '^[0-9]*$' | sed 's/|/ /g' |sort -nrk 8 -nrk 9 |tail -n +1 |head -n 10`
 
 
-#### Screen
-
+### Screen
 Screen可以看作是窗口管理器的命令行界面版本。它提供了统一的管理多个会话的界面和相应的功能。
 
 常用screen参数：
 
-- screen -S yourname -> 新建一个叫yourname的session
+- screen -S name -> 新建一个叫name的session
 - screen -ls -> 列出当前所有的session
-- screen -r yourname -> 回到yourname这个session
-- screen -d yourname -> 远程detach某个session
-- screen -d -r yourname -> 结束当前session并回到yourname这个session
+- screen -r name -> 回到name这个session
+- screen -d name -> 远程detach某个session
+- screen -d -r name -> 结束当前session并回到name这个session
 - screen -help 查看帮助
 
-当使用`screen -S xxx` 启动后，会创建第一个窗口，也就是窗口No. 0，并在其中打开一个系统默认的shell，一般都会是bash。所以你敲入命令screen之后，会立刻又返回到命令提示符，仿佛什么也没有发生似的，其实你已经进入Screen的世界了。当然，也可以在screen命令之后加入你喜欢的参数，使之直接打开你指定的程序，例如：`screen vi david.txt`
+当使用`screen -S xxx`启动后，会创建第一个窗口，也就是窗口No.0，并在其中打开一个系统默认的shell，一般都会是bash。所以你敲入命令screen之后，会立刻又返回到命令提示符，仿佛什么也没有发生似的，其实你已经进入Screen的世界了。当然，也可以在screen命令之后加入你喜欢的参数，使之直接打开你指定的程序，例如：`screen vi david.txt`
 screen创建一个执行vi david.txt的单窗口会话，退出vi 将退出该窗口/会话。
 
 在每个screen session下，所有命令都以 ctrl+a(C-a) 开始。
 ```
 常用：
 C-a c -> 创建一个新的运行shell的窗口并切换到该窗口
-C-a n -> Next，切换到下一个 window 
-C-a p -> Previous，切换到前一个 window 
-C-a d -> detach，暂时离开当前session，将目前的screen session(可能含有多个 windows) 丢到后台执行，并会回到还没进screen时的状态，此时在screen session里，每个window内运行的 process (无论是前台/后台)都在继续执行，即使logout也不影响。 
+C-a n -> Next，切换到下一个window 
+C-a p -> Previous，切换到前一个window 
+C-a d -> detach，暂时离开当前session，将目前的screen session(可能含有多个 windows) 丢到后台执行，并会回到还没进screen时的状态，此时在screen session里，每个window内运行的process(无论是前台/后台)都在继续执行，即使logout也不影响。
 
-其他：
-C-a ? -> 显示所有键绑定信息
-C-a 0..9 -> 切换到第 0..9 个 window
-Ctrl+a [Space] -> 由视窗0循序切换到视窗9
-C-a C-a -> 在两个最近使用的 window 间切换 
-C-a x -> 锁住当前的 window，需用用户密码解锁
-C-a z -> 把当前session放到后台执行，用 shell 的 fg 命令则可回去。
-C-a w -> 显示所有窗口列表
-C-a t -> Time，显示当前时间，和系统的 load 
-C-a k -> kill window，强行关闭当前的 window
-C-a [ -> 进入 copy mode，在 copy mode 下可以回滚、搜索、复制就像用使用 vi 一样
-    C-b Backward，PageUp 
-    C-f Forward，PageDown 
-    H(大写) High，将光标移至左上角 
-    L Low，将光标移至左下角 
-    0 移到行首 
-    $ 行末 
-    w forward one word，以字为单位往前移 
-    b backward one word，以字为单位往后移 
-    Space 第一次按为标记区起点，第二次按为终点 
-    Esc 结束 copy mode 
-C-a ] -> Paste，把刚刚在 copy mode 选定的内容贴上
+exit命令退出并结束session.
 ```
 
-5.3 查看窗口和窗口名称
+### curl
+在Linux中curl是一个利用URL规则在命令行下工作的文件传输工具，可以说是一款很强大的http命令行工具。
 
-打开多个窗口后，可以使用快捷键C-a w列出当前所有窗口。如果使用文本终端，这个列表会列在屏幕左下角，如果使用X环境下的终端模拟器，这个列表会列在标题栏里。窗口列表的样子一般是这样：
+语法：`curl [option] [url]`
 
-0$ bash  1-$ bash  2*$ bash  
-这个例子中我开启了三个窗口，其中*号表示当前位于窗口2，-号表示上一次切换窗口时位于窗口1。
-
-Screen默认会为窗口命名为编号和窗口中运行程序名的组合，上面的例子中窗口都是默认名字。练习了上面查看窗口的方法，你可能就希望各个窗口可以有不同的名字以方便区分了。可以使用快捷键C-a A来为当前窗口重命名，按下快捷键后，Screen会允许你为当前窗口输入新的名字，回车确认。
-
-5.4 会话分离与恢复
-
-你可以不中断screen窗口中程序的运行而暂时断开（detach）screen会话，并在随后时间重新连接（attach）该会话，重新控制各窗口中运行的程序。例如，我们打开一个screen窗口编辑/tmp/david.txt文件：
-
-[root@TS-DEV ~]# screen vi /tmp/david.txt
-之后我们想暂时退出做点别的事情，比如出去散散步，那么在screen窗口键入C-a d，Screen会给出detached提示：
-
-暂时中断会话
-
-
-半个小时之后回来了，找到该screen会话：
-
-[root@TS-DEV ~]# screen -ls
-
-
-重新连接会话：
-
-[root@TS-DEV ~]# screen -r 12865
-一切都在。
-
-当然，如果你在另一台机器上没有分离一个Screen会话，就无从恢复会话了。
-
-这时可以使用下面命令强制将这个会话从它所在的终端分离，转移到新的终端上来：
-
-
-5.5 清除dead 会话
-
-如果由于某种原因其中一个会话死掉了（例如人为杀掉该会话），这时screen -list会显示该会话为dead状态。使用screen -wipe命令清除该会话：
-
-
-5.6 关闭或杀死窗口
-
-正常情况下，当你退出一个窗口中最后一个程序（通常是bash）后，这个窗口就关闭了。另一个关闭窗口的方法是使用C-a k，这个快捷键杀死当前的窗口，同时也将杀死这个窗口中正在运行的进程。
-
-如果一个Screen会话中最后一个窗口被关闭了，那么整个Screen会话也就退出了，screen进程会被终止。
-
-除了依次退出/杀死当前Screen会话中所有窗口这种方法之外，还可以使用快捷键C-a :，然后输入quit命令退出Screen会话。需要注意的是，这样退出会杀死所有窗口并退出其中运行的所有程序。其实C-a :这个快捷键允许用户直接输入的命令有很多，包括分屏可以输入split等，这也是实现Screen功能的一个途径，不过个人认为还是快捷键比较方便些。
-
-
-
-如何杀死一个已经detached的screen会话？
-
-如果想杀死一个已经detached的screen会话，可以使用以下命令：
-
-screen -X -S [session # you want to kill] quit
-
-举例如下：
-
-[root@localhost ~]# screen -ls
-There are screens on:
-        9975.pts-0.localhost    (Detached)
-        4588.pts-3.localhost    (Detached)
-2 Sockets in /var/run/screen/S-root.
-
-[root@localhost ~]# screen -X -S 4588 quit
-[root@localhost ~]# screen -ls
-There is a screen on:
-        9975.pts-0.localhost    (Detached)
-1 Socket in /var/run/screen/S-root.
-可以看到，4588会话已经没有了。
-
-
-#### curl
-在Linux中curl是一个利用URL规则在命令行下工作的文件传输工具，可以说是一款很强大的http命令行工具。它支持文件的上传和下载，是综合传输工具，但按传统，习惯称url为下载工具。
-
-语法：# curl [option] [url]
 常见参数：
 
-复制代码
--A/--user-agent <string>              设置用户代理发送给服务器
--b/--cookie <name=string/file>    cookie字符串或文件读取位置
--c/--cookie-jar <file>                    操作结束后把cookie写入到这个文件中
--C/--continue-at <offset>            断点续转
--D/--dump-header <file>              把header信息写入到该文件中
--e/--referer                                  来源网址
--f/--fail                                          连接失败时不显示http错误
--o/--output                                  把输出写到该文件中
--O/--remote-name                      把输出写到该文件中，保留远程文件的文件名
--r/--range <range>                      检索来自HTTP/1.1或FTP服务器字节范围
--s/--silent                                    静音模式。不输出任何东西
--T/--upload-file <file>                  上传文件
--u/--user <user[:password]>      设置服务器的用户和密码
--w/--write-out [format]                什么输出完成后
--x/--proxy <host[:port]>              在给定的端口上使用HTTP代理
--#/--progress-bar                        进度条显示当前的传送状态
-复制代码
-例子：
-1、基本用法
-`curl http://www.linux.com`
+    -A/--user-agent <string>          设置用户代理发送给服务器
+    -b/--cookie <name=string/file>    cookie字符串或文件读取位置
+    -c/--cookie-jar <file>            操作结束后把cookie写入到这个文件中
+    -C/--continue-at <offset>         断点续转
+    -D/--dump-header <file>           把header信息写入到该文件中
+    -e/--referer                      来源网址
+    -f/--fail                         连接失败时不显示http错误
+    -o/--output                       把输出写到该文件中
+    -O/--remote-name                  把输出写到该文件中，保留远程文件的文件名
+    -r/--range <range>                检索来自HTTP/1.1或FTP服务器字节范围
+    -s/--silent                       静音模式。不输出任何东西
+    -T/--upload-file <file>           上传文件
+    -u/--user <user[:password]>       设置服务器的用户和密码
+    -x/--proxy <host[:port]>          在给定的端口上使用HTTP代理
+    -#/--progress-bar                 进度条显示当前的传送状态
 
-执行后，www.linux.com 的html就会显示在屏幕上了。Ps：由于安装linux的时候很多时候是没有安装桌面的，也意味着没有浏览器，因此这个方法也经常用于测试一台服务器是否可以到达一个网站。
+#### 1.基本用法
 
-2、保存访问的网页
-2.1:使用linux的重定向功能保存
+`curl https://www.google.com`
 
-# curl http://www.linux.com >> linux.html
-2.2:可以使用curl的内置option:-o(小写)保存网页
+执行后，www.google.com的html就会显示在屏幕上了。Ps：由于安装linux的时候很多时候是没有安装桌面的，也意味着没有浏览器，因此这个方法也经常用于测试一台服务器是否可以到达一个网站。
 
-$ curl -o linux.html http://www.linux.com
-执行完成后会显示如下界面，显示100%则表示保存成功
+#### 2.保存文件/下载
+1. `curl https://www.google.com >> linux.html` 可以保存访问的网页。
+2. 也可以使用curl的内置option:-o(小写)保存网页 `curl -o linux.html https://www.google.com`。
+3. 下载文件：`curl -o dodo1.jpg https://www.google.com/dodo1.JPG`。
+4. 可以使用curl的内置option:-O(大写)保存网页中的文件，要注意这里后面的url要具体到某个文件，`curl -O https://www.google.com/xxxx.jpg`。
+5. 循环下载 `curl -O https://www.google.com/dodo[1-5].JPG` 这样就会把dodo1，dodo2，dodo3，dodo4，dodo5全部保存下来。
+6. 分块下载，有时候下载的东西会比较大，这个时候我们可以分段下载。使用内置option：-r
+```
+curl -r 0-100 -o dodo1_part1.JPG https://www.google.com/dodo1.JPG
+curl -r 100-200 -o dodo1_part2.JPG https://www.google.com/dodo1.JPG
+curl -r 200- -o dodo1_part3.JPG https://www.google.com/dodo1.JPG
+cat dodo1_part* > dodo1.JPG
+```
+这样就可以查看dodo1.JPG的内容了。
 
-% Total    % Received % Xferd  Average Speed  Time    Time    Time  Current
-                                Dload  Upload  Total  Spent    Left  Speed
-100 79684    0 79684    0    0  3437k      0 --:--:-- --:--:-- --:--:-- 7781k
-2.3:可以使用curl的内置option:-O(大写)保存网页中的文件
-要注意这里后面的url要具体到某个文件，不然抓不下来
+#### 模仿浏览器
+有些网站需要使用特定的浏览器去访问他们，有些还需要使用某些特定的版本。curl内置option:-A可以让我们指定浏览器去访问网站: `curl -A "Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.0)" https://www.google.com`这样服务器端就会认为是使用IE8.0去访问。
 
-# curl -O http://www.linux.com/hello.sh
 3、测试网页返回值
 
-# curl -o /dev/null -s -w %{http_code} www.linux.com
+ curl -o /dev/null -s -w %{http_code} www.linux.com
 Ps:在脚本中，这是很常见的测试网站是否正常的用法
 
 4、指定proxy服务器以及其端口
 很多时候上网需要用到代理服务器(比如是使用代理服务器上网或者因为使用curl别人网站而被别人屏蔽IP地址的时候)，幸运的是curl通过使用内置option：-x来支持设置代理
 
-# curl -x 192.168.100.100:1080 http://www.linux.com
+ curl -x 192.168.100.100:1080 https://www.google.com
+
 5、cookie
 有些网站是使用cookie来记录session信息。对于chrome这样的浏览器，可以轻易处理cookie信息，但在curl中只要增加相关参数也是可以很容易的处理cookie
 5.1:保存http的response里面的cookie信息。内置option:-c（小写）
 
-# curl -c cookiec.txt  http://www.linux.com
+ curl -c cookiec.txt  https://www.google.com
 执行后cookie信息就被存到了cookiec.txt里面了
 
 5.2:保存http的response里面的header信息。内置option: -D
 
-# curl -D cookied.txt http://www.linux.com
+ curl -D cookied.txt https://www.google.com
 执行后cookie信息就被存到了cookied.txt里面了
 
 注意：-c(小写)产生的cookie和-D里面的cookie是不一样的。
@@ -536,78 +445,32 @@ Ps:在脚本中，这是很常见的测试网站是否正常的用法
 5.3:使用cookie
 很多网站都是通过监视你的cookie信息来判断你是否按规矩访问他们的网站的，因此我们需要使用保存的cookie信息。内置option: -b
 
-# curl -b cookiec.txt http://www.linux.com
-6、模仿浏览器
-有些网站需要使用特定的浏览器去访问他们，有些还需要使用某些特定的版本。curl内置option:-A可以让我们指定浏览器去访问网站
+ curl -b cookiec.txt https://www.google.com
 
-# curl -A "Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.0)" http://www.linux.com
-这样服务器端就会认为是使用IE8.0去访问的
+
 
 7、伪造referer（盗链）
 很多服务器会检查http访问的referer从而来控制访问。比如：你是先访问首页，然后再访问首页中的邮箱页面，这里访问邮箱的referer地址就是访问首页成功后的页面地址，如果服务器发现对邮箱页面访问的referer地址不是首页的地址，就断定那是个盗连了
 curl中内置option：-e可以让我们设定referer
 
-# curl -e "www.linux.com" http://mail.linux.com
+ curl -e "www.linux.com" http://mail.linux.com
 这样就会让服务器其以为你是从www.linux.com点击某个链接过来的
 
-8、下载文件
-8.1：利用curl下载文件。
-#使用内置option：-o(小写)
 
-# curl -o dodo1.jpg http:www.linux.com/dodo1.JPG
-#使用内置option：-O（大写)
-
-# curl -O http://www.linux.com/dodo1.JPG
-这样就会以服务器上的名称保存文件到本地
-
-8.2：循环下载
-有时候下载图片可以能是前面的部分名称是一样的，就最后的尾椎名不一样
-
-# curl -O http://www.linux.com/dodo[1-5].JPG
-这样就会把dodo1，dodo2，dodo3，dodo4，dodo5全部保存下来
-
-8.3：下载重命名
-
-# curl -O http://www.linux.com/{hello,bb}/dodo[1-5].JPG
-由于下载的hello与bb中的文件名都是dodo1，dodo2，dodo3，dodo4，dodo5。因此第二次下载的会把第一次下载的覆盖，这样就需要对文件进行重命名。
-
-# curl -o #1_#2.JPG http://www.linux.com/{hello,bb}/dodo[1-5].JPG
-这样在hello/dodo1.JPG的文件下载下来就会变成hello_dodo1.JPG,其他文件依此类推，从而有效的避免了文件被覆盖
-
-8.4：分块下载
-有时候下载的东西会比较大，这个时候我们可以分段下载。使用内置option：-r
-
-# curl -r 0-100 -o dodo1_part1.JPG http://www.linux.com/dodo1.JPG
-# curl -r 100-200 -o dodo1_part2.JPG http://www.linux.com/dodo1.JPG
-# curl -r 200- -o dodo1_part3.JPG http://www.linux.com/dodo1.JPG
-# cat dodo1_part* > dodo1.JPG
-这样就可以查看dodo1.JPG的内容了
-
-8.5：通过ftp下载文件
-curl可以通过ftp下载文件，curl提供两种从ftp中下载的语法
-
-# curl -O -u 用户名:密码 ftp://www.linux.com/dodo1.JPG
-# curl -O ftp://用户名:密码@www.linux.com/dodo1.JPG
-8.6：显示下载进度条
-
-# curl -# -O http://www.linux.com/dodo1.JPG
-8.7：不会显示下载进度信息
-
-# curl -s -O http://www.linux.com/dodo1.JPG
 9、断点续传
 在windows中，我们可以使用迅雷这样的软件进行断点续传。curl可以通过内置option:-C同样可以达到相同的效果
 如果在下载dodo1.JPG的过程中突然掉线了，可以使用以下的方式续传
 
-# curl -C -O http://www.linux.com/dodo1.JPG
+ curl -C -O https://www.google.com/dodo1.JPG
 10、上传文件
 curl不仅仅可以下载文件，还可以上传文件。通过内置option:-T来实现
 
-# curl -T dodo1.JPG -u 用户名:密码 ftp://www.linux.com/img/
+ curl -T dodo1.JPG -u 用户名:密码 ftp://www.linux.com/img/
 这样就向ftp服务器上传了文件dodo1.JPG
 
 11、显示抓取错误
 
-# curl -f http://www.linux.com/error
+ curl -f https://www.google.com/error
 其他参数(此处翻译为转载)：
 
 复制代码
@@ -792,16 +655,16 @@ tmux 默认配置中最糟糕的体验就是滚屏查看和文本复制（大家
 因此 tmux 提供了一些个性化配置项来优化这些配置，首先在 shell 中运行 touch ~/.tmux.conf 新建用户配置文件。在文件中增加以下内容：
 
  
-# 开启鼠标模式
+ 开启鼠标模式
 set -g mode-mouse on
 ​
-# 允许鼠标选择窗格
+ 允许鼠标选择窗格
 set -g mouse-select-pane on
 ​
-# 如果喜欢给窗口自定义命名，那么需要关闭窗口的自动命名
+ 如果喜欢给窗口自定义命名，那么需要关闭窗口的自动命名
 set-option -g allow-rename off
 ​
-# 如果对 vim 比较熟悉，可以将 copy mode 的快捷键换成 vi 模式
+ 如果对 vim 比较熟悉，可以将 copy mode 的快捷键换成 vi 模式
 set-window-option -g mode-keys vi
  
 
