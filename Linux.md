@@ -702,3 +702,7 @@ vim是vi的增强版本。
 
 
 `time curl -v http://influxdb.pqm.dev.aws.fwmrm.net/ping`
+
+
+
+export 命令 环境变量在screen中不同，需要单独声明。
