@@ -609,3 +609,12 @@ influxd启动
 
 influx -h
 precision RFC3339 显示具体时间
+
+InfluxDB提供prometheus remote write/read API:
+```
+remote_write:
+  - url: "http://localhost:8086/api/v1/prom/write?db=prometheus"
+
+remote_read:
+  - url: "http://localhost:8086/api/v1/prom/read?db=prometheus"
+```
