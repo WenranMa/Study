@@ -354,6 +354,40 @@ Label names may contain ASCII letters, numbers, as well as underscores. They mus
 
 Given a metric name and a set of labels, time series are frequently identified using this notation: `<metric name>{<label name>=<label value>, ...}`.
 
+```
+global:
+  scrape_interval: 10s
+  scrape_timeout: 6s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: schema-registry
+    scrape_interval: 10s
+    scrape_timeout: 6s
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+    - targets: ['localhost:5556']
+    metric_relabel_configs:
+    - source_labels: [__name__]
+      regex: ^xxx_.*
+      action: keep
+
+remote_write:
+- url: "http://xxx.xxx.xxx.xxx:8086/api/v1/prom/write?db=xxx&rp=autogen"
+  write_relabel_configs:
+  - source_labels: [job]
+    regex: schema-registry
+    action: keep
+  queue_config:
+    max_samples_per_send: 2000
+    capacity: 100000
+    batch_send_deadline: 1s
+
+remote_read:
+  - url: "xxx.xxx.xxx.xxx::8086/api/v1/prom/read?db=xxx&rp=autogen"
+```
+
 ### metric type
 Prometheus客户端库提供四种核心度量标准类型。这些目前仅在客户端库中区分。Prometheus服务器尚未使用类型信息，并将所有数据展平为无类型时间序列。
 
