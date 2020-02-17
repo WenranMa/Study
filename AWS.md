@@ -19,12 +19,23 @@ Each Region is completely independent. Each Availability Zone is isolated, but t
 
 ![Region](./img/aws_regions.png)
 
-An Availability Zone is represented by a Region code followed by a letter identifier; for example, us-east-1a.
+An Availability Zone is represented by a Region code followed by a letter identifier; for example, _us-east-1a_.
 
 | Code |   Name  |  Opt-in Status | Local Zone |
 | ---- | ------- | -------------- | ---------- |
 | us-east-2 | US East (Ohio) | Not required | No |
 | us-east-1 | US East (N. Virginia) | Not required | No |
+
+
+### Sercurity Group ??
+
+### Role ??
+
+ARN???
+
+cloudwatch
+
+
 
 ## RDS
     关系型数据库的管理平台。
@@ -46,3 +57,6 @@ ROUTE 53
 
 ## AWS CLI
 
+### aws configure
+
+file??
