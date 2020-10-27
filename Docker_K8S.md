@@ -306,6 +306,9 @@ spec:
             name: my-app-config
 ```
 
+#### Service
+
+
 #### Docker entry and cmd overwritten.
 
 When you override the default Entrypoint and Cmd, these rules apply:
