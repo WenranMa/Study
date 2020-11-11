@@ -31,20 +31,64 @@ HDFS读流程：
 	客户端从该DataNode下载文件。
 
 2. MapReduce分布式计算
-一种编程模型
+一种编程模型，分而治之。
 
-YARN
+YARN概念
+	ResourceManager：
+		分配调度资源
+		启动和监控ApplicationMaster
+		监控NodeManager
+	ApplicationMaster
+		为MR类型程序申请资源
+		数据切分
+		监控任务执行和容错
+	NodeManager
+		管理单个节点资源
+		处理ResourceManager和ApplicationMaster的命令
 
-
-
+输入一个大文件，分片，每片文件交给单独的机器去处理，这就是Map方法。
+各个结果再汇总得到最终结果，这就是Reduce方法。
 
 
 ## Spark
+基于内存计算的大数据并行计算框架。计算的中间值存在于内存中。
+MapReduce的替代方案。
+兼容HDFS，Hive等。
+本身是Scala开发，运行与JVM上。
+
+Hadoop的中间计算结果会落盘，导致计算时效差，不适用与交互处理，更适合离线处理。Spark基于内存，计算时间是秒级和分钟级。
 
 
-Hive数据仓库
+弹性分布式数据集RDD ???
+基于事件驱动？？？
 
-Presto
+spark shell
+
+
+
+
+## Hbase
+分布式数据库，利用HDFS作为文件存储系统，支持MapReduce程序读取数据。
+支持存储非结构化和半结构化数据？？
+
+特点：
+	海量数据存储（单表百亿行x百万列），准实时查询。	面向列，不同于关系型数据块，Hbase列可以动态增加。对列进行单独操作。
+	多版本，TimeStamp。
+	稀疏性，因为列是动态的，所以为空的列不占用空间。
+	扩展性，高可靠，依赖HDFS。
+	
+
+RowKey：数据唯一标识。
+Column Family：多个列的集合。
+TimeStamp：支持多版本数据
+
+
+
+
+## Hive数据仓库
+
+
+## Presto
 
 presto cli
 ```bash
