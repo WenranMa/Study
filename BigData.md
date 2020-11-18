@@ -109,6 +109,16 @@ YARN概念
 
 
 ## Hive
+	数据仓库，将多个数据源的数据经过ETL之后，按照一定主题集成起来提供决策支持和联机分析应用的数据环境。
+	ETL = Extract, Transform, Load.
+
+	Hive就是基于Hadoop的数仓工具，提供类SQL支持。
+	以MapReduce作计算引擎，HDFS作为存储系统。
+	Hive的库和表是对HDFS上数据的映射。这些映射叫Hive的元数据（metadata），存在外部关系型数据块上。
+	Hive语句的执行：将HQL转换成MapReduce任务。MR要频繁进行IO读写，所以Hive的查询速度不快，所以与presto查询引擎结合。
+	
+OLTP and OLAP ？？
+	
 
 
 ## Presto
