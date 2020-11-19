@@ -119,6 +119,13 @@ YARN概念
 	
 OLTP and OLAP ？？
 	
+#### Hive存储格式
+	
+	TextFile
+	Sequence File
+	OrcFile
+	
+	列式存储
 
 ## Presto
 	
