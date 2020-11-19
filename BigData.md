@@ -120,10 +120,44 @@ YARN概念
 OLTP and OLAP ？？
 	
 
-
 ## Presto
+	
+	分布式SQL查询引擎，支持标准SQL，高速实时，低延时，高并发，属于内存计算引擎。解决Hive MapReduce模型太慢的问题。是一个计算引擎，并不存储数据，通过丰富的connector获取第三方服务的数据，比如连接Hive metastore service，Hbase，Kafka，MongoDB。
 
-presto cli
+#### 概念：	
+```sql
+select *
+from 
+	hive.testdb.table_a a 
+	join mysql.testdb.table_b b on a.id = b.id
+where
+	a.name = "xxx"
+```
+	Catalog：数据源，上面的hive，mysql都是数据源。Presto支持多个数据源和跨数据源查询。
+	Schema：类比于Database，一个Catalog可以有多个Schema。
+	Table：数据表，与常规数据库的表一个概念，一个上Schema可以有多个table。
+
+
+#### presto cli
 ```bash
 presto --server kpr-s0000230f-presto-master.amazonaws.com:9106 --catalog fw --schema ax_fact --http-proxy x.x.x.x:portn
 ```
+	可以用`show tables`命令查看所有schema下的table。
+	
+#### 架构
+	Master-Slave架构：
+	一个Coordinator节点，负责解析SQL语句，生成查询计划，分发执行任务。
+	一个Discovery Server节点，负责维护Coordinator和Worker的关系，通常内嵌于Coordinator节点。
+	多个Worker节点，负责查询任务，与HDFS进行交互读取数据。每个worker可以有多个connector对应不同的数据源来支持跨数据源查询，结果在内存中汇总。
+
+![presto](./img/presto.PNG)
+![presto](./img/presto_1.PNG)
+
+#### MPP
+	数据块架构：
+	Shared Everything：完全透明，共享CPU，Memory，IO，并行处理能力差，比如SQL Server。
+	Shared Storage：各个处理单元有私有的CPU和内存，共享磁盘。
+	Shared Nothing：有私有的CPU，内存和磁盘，典型代表Hadoop。
+	
+	Shared　Nothing就是属于MPP架构（Massive Parallel Processing）。容易扩展，并行能力强。无IO冲突，无资源竞争。
+	短板效应，单个节点会影像整个查询。所以一般每个worker都是一样的配置。
