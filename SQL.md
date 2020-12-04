@@ -104,6 +104,7 @@ select a.name, b.sex from user1 a cross join user2 b;
 ```
 
 ### 技巧
+
 #### JOIN解决错误
 ```
 update user1 set over=‘齐天大圣’ 
@@ -145,6 +146,71 @@ from user1 a left join user2 b on a.user_name=b.user_name;
 ```
 
 
+查询打怪最多的日期
+```
+select 
+	a.user_name,
+	b.timestr,
+	b.kills 
+from user1 a join user_kills b ON a.id=b.user_id 
+where b.kills=(
+	select 
+		MAX(c.kills) 
+	from user_kills c 
+	where c.user_id=b.user_id);
+```
+使用join + having优化聚合子查询:
+```
+select 
+	a.user_name,
+	b.timestr,
+	b.kills 
+from user1 a
+	join user_kills b on a.id = b.user_id 
+	join user_kills c on c.user_id = b.user_id
+group by a.user_name,btimestr,b.kills
+having b.kills = max(c.kills);
+```
+
+
+分类聚合方式查询每一个用户某一个字段数据最大的两条数据：
+```
+select 
+	d.user_name ,
+	c.ctimestr,
+	kills 
+from (
+	select 
+		user_id,
+		timestr,
+		kills,
+		(select 
+			count(*) 
+		from user_kills b 
+		where b.user_id = a.user_id 
+			and a.kills <= b.kills)as cnt 
+    from 
+		user_kills a
+	group by user_id,timestr,kills) c 
+	join user1 d on c.user_id = d.id 
+where 
+	cnt <= 2
+```
+刚仔细思考了一下最后一课的SQL，与大家分享一下，希望大家帮忙找出错误。
+    select d.user_name ,c.ctimestr,kills from
+    (select user_id ,timestr ,kills ,(
+     select count(*) from user_kills b where b.user_id = a.user_id and a.kills <= b.kills) as cnt 
+     from user_kills a group by user_id,timestr,kills) c 
+     join user1 d on c.user_id = d.id where cnt <= 2
+首先将第一个From后面的子查询看成一个普通表，这样就是一个普通的多表连接查询了。
+where cnt < 2便是筛选条件，选择出顺序是1，2前两条记录。然后在看括号里面里层括号这里所做的就是查询出这条记录在分组中根据kills排序的顺序，但是为啥是count（*）呢？ 
+假设孙悟空打怪 3，5，12 我用3，5,12分别与3，5,12比较
+3   3,5,12  小于3的有3条记录
+5  3,5,12   小于5的有2条记录  
+12 3,5，12  小于12的有1条记录
+如此count（*）代表的就是顺序了，如果需要正序，只要将<= 改成>=就好了
+
+
 ### Prerequisite
 ```
 CREATE TABLE `user1` (
@@ -172,3 +238,22 @@ INSERT INTO `blog`.`user2`(`id`, `user_name`, `over`) VALUES (3, '蛟魔王', '�
 INSERT INTO `blog`.`user2`(`id`, `user_name`, `over`) VALUES (4, '鹏魔王', '被降服');
 INSERT INTO `blog`.`user2`(`id`, `user_name`, `over`) VALUES (5, '狮驼王', '被降服');
 ```
+
+
+
+## 子查询
+
+子查询：这个查询是另外一个查询的条件，称作子查询。
+
+select user_name from user1 where id in (select user_id from user_kills);
+-- 使用子查询可以避免由于子查询中的数据产生的重复。
+select a.user_name from user1 a join user_kills b on a.id =b.user_id;
+-- 会产生重复记录
+select distinct a.user_name from user1 a join user_kills b on a.id =b.user_id;
+-- 使用distinct去除重复记录
+
+子查询转成join链接之后查询，注意数据重复的问题；
+
+子查询会自动过滤子查询中重复的记录的，但是join链接，会出现重复数据
+
+
