@@ -257,3 +257,45 @@ select distinct a.user_name from user1 a join user_kills b on a.id =b.user_id;
 子查询会自动过滤子查询中重复的记录的，但是join链接，会出现重复数据
 
 
+
+
+## 列转行
+
+利用自身连接来实现：
+```
+SELECT *
+FROM (
+	SELECT SUM(KILLS) AS 'A'
+	FROM A INNER JOIN B ON A.NAME=B.USER_NAME
+	WHERE A.NAME='A') AS A CROSS JOIN(
+	SELECT SUM(KILLS) AS 'B'
+	FROM A INNER JOIN B ON A.NAME=B.USER_NAME
+	WHERE A.NAME='B') AS B CROSS JOIN(
+	SELECT SUM(KILLS) AS 'C'
+	FROM A INNER JOIN B ON A.NAME=B.USER_NAME
+	WHERE A.NAME='C')AS C;
+```
+比如成绩
+1、分别查询出不同同学的成绩，并将字段名改为同学的名字
+2、通过交叉连接，将不同的语句连接起来
+
+缺点：是将原来查询的结果每一行单独查询出来，再进行拼接。因此每增加一个同学就增加一个SELECT语句。并且是通过交叉连接，要保证每个查询的结果只能是一个，不然没办法通过交叉连接实现转换。
+
+
+使用case 语句来实现行列转换
+```
+SELECT SUM(CASE WHEN u.`user_name` = '八戒' THEN k.`kills` END) AS '八戒',
+ SUM(CASE WHEN u.`user_name` = '悟空' THEN k.`kills` END) AS '悟空' ,
+ SUM(CASE WHEN u.`user_name` = '沙僧' THEN k.`kills` END) AS '沙僧' 
+ FROM user_kills k  JOIN user1 u ON k.`user_id` = u.`id`;
+```
+
+## 行转列
+```
+SELECT username,REPLACE(substring(SUBSTRING_INDEX(mobile,',',a.id), CHAR_LENGTH(SUBSTRING_INDEX(mobile,',',a.id-1))+1),',','') AS mobile 
+FROM tb_sequence AS a
+CROSS JOIN 
+(SELECT username, CONCAT(mobile,',') AS mobile, (LENGTH(mobile)-LENGTH(REPLACE(mobile,',',''))+1) AS size 
+FROM user1) AS b 
+ON a.id <= b.size;
+```
