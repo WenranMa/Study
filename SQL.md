@@ -299,3 +299,85 @@ CROSS JOIN
 FROM user1) AS b 
 ON a.id <= b.size;
 ```
+
+
+## 唯一序列号：
+需要使用唯一序列号的场景：
+1. 作为数据库主键。
+2. 业务序列号。
+
+生成序列号的方法：
+- MySQL：AUTO_INCREMENT
+- SQLServer：IDENTITY/SEQUENCE
+- Oracle：SEQUENCE
+- PgSQL：SEQUENCE
+
+如何选择生成序列号的方式：
+
+原则：优先选择系统提供的序列号生成方式。
+
+优点：
+1. 控制并发；
+2. 不重复，保证序列号的唯一性。
+
+缺点：序列号不连续（数据空洞），例如 1、2、4。
+
+原因：对已有的数据的删除，以及事务回滚等方式不会影响自增长的序号，例如已有数据 1、2、3，删除 3 号数据。之后再插入一条数据，此时数据表的数据为 1、2、4。
+
+
+存储过程，订单号：
+
+```
+DECLARE v_cnt INT;
+DECLARE v_timestr INT;
+DECLARE rowcount BIGINT;
+SET v_timestr = DATE_FORMAT(NOW(),'%Y%m%d');
+SELECT ROUND(RAND()*100,0)+1 INTO v_cnt;
+START TRANSACTION;
+UPDATE order_seq SET order_sn = order_sn + v_cnt WHERE timestr = v_timestr;
+IF ROW_COUNT() = 0 THEN
+INSERT INTO order_seq(timestr,order_sn) VALUES(v_timestr,v_cnt);
+END IF;
+SELECT CONCAT(v_timestr,LPAD(order_sn,7,0))AS order_sn
+FROM order_seq WHERE timestr = v_timestr;
+COMMIT;
+```
+
+知识点：
+1、在sql语句中添加变量。
+declare @local_variable data_type
+声明时需要指定变量的类型，可以使用SET、SELECT、SELECT...INTO对变量进行赋值，在sql语句中就可以使用@local_variable来调用变量。
+2、RAND()返回一个介于 0 到 1（不包括 0 和 1）之间的伪随机 float 值。
+3、事务
+4、ROW_COUNT()函数返回查询语句执行后，被影响的列数目
+5、IF...THEN...END IF;
+
+### 删除重复数据
+
+1.查询数据是否重复
+```
+SELECT 
+	user_name,
+	COUNT(*)
+FROM user1_test
+GROUP BY 
+	user_name
+HAVING COUNT(*)>1;
+```
+2.删除重复数据，对于相同数据保留ID最大的
+```
+DELETE a 
+FROM user1_test a JOIN(
+	SELECT 
+		user_name,
+		COUNT(*),
+		MAX(id) AS id
+	FROM user1_test
+	GROUP BY user_name HAVING COUNT(*)>1) b 
+ON a.user_name=b.user_name
+WHERE a.id<b.id;
+```
+
+
+
+
