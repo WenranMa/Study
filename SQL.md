@@ -407,5 +407,119 @@ where (b.user_id, b.kills) in (
 
 ## 同一属性多值过滤
 
+前置条件
+```
+create table skills(
+id mediumint primary key auto_increment,
+username varchar(64),
+skill varchar(64),
+skill_level mediumint
+);
+insert into skills(username,skill,skill_level) values('唐僧','紧箍咒',5)
+,('唐僧','打坐',4)
+,('唐僧','念经',5)
+,('唐僧','变化',0)
+,('猪八戒','变化',4)
+,('猪八戒','腾云',3)
+,('猪八戒','浮水',5)
+,('猪八戒','念经',0)
+,('猪八戒','紧箍咒',0)
+,('孙悟空','变化',5)
+,('孙悟空','腾云',5)
+,('孙悟空','浮水',3)
+,('孙悟空','念经',2)
+,('孙悟空','请神',5)
+,('孙悟空','紧箍咒',0)
+,('沙僧','变化',2)
+,('沙僧','腾云',2)
+,('沙僧','浮水',4)
+,('沙僧','念经',1)
+,('沙僧','紧箍咒',0);
+```
 
+
+```
+select 
+	s1.username,
+	s1.skill,
+	s2.skill
+from skills s1 join skills s2 on s1.username=s2.username 
+where
+	s1.skill='变化'
+	and s2.skill='念经'
+	and s1.skill_level>0 and s2.skill_level>0;
+``` 
+
+
+```
+Select a.user_name,b.skill,c.skill,e.skill From user1 a
+From user1 a 
+Left join user1_skill b on a.id =b.user_id and b.skill='念经' and
+b.skill level>0
+Left join user1_skill c on a.id = c.user_id and c.skill='变化' and
+c.skill_level>0
+Left join user1_skill d on a.id = d.user_id and d.skill = '腾云' and
+c.skill_level>0
+Left join user1_skill e on a.id = e.user_id and e.skill = '浮水' and
+e.skill_level>0
+Where (case when b.skill is not null then 1 else 0 end)
++(case when c.skill is not null then 1 else 0 end)
++(case when d.skill is not null then 1 else 0 end)
++(case when e.skill is not null then 1 else 0 end)>=2;
+```
+
+上面sql的问题是，如果再多选一个技能，join和where条件都会增加，不灵活。
+
+```
+select a.user_name 
+from user1 a join user1_skills b on a.id=b.user_id 
+where b.skill in ('念经','变化','腾云','浮水') and b.skill_level>0 
+group by a.user_name having count(*)>=2;
+```
+
+## 累进税
+```
+select
+	a.user_name,
+	money,
+	low,
+	high,
+	rate
+from
+	user1 a join taxRate b on a.money > b.low
+order by user_name
+```
+
+```
+select
+	user_name,
+	money,
+	low,
+	high,
+	least(money-low, high-low) as curmoney,
+	rate
+from
+	user1 a join taxRate b on a.money > b.low
+order by user_name,low
+```
+
+应付税额
+
+```
+select 
+	user_name,
+	sum(curmoney*rate)
+from (
+	select
+		user_name,
+		money,
+		low,
+		high,
+		least(money-low, high-low) as curmoney,
+		rate
+	from
+		user1 a join taxRate b on a.money > b.low
+) tax
+group by user_name
+```
 
