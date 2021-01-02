@@ -240,25 +240,6 @@ INSERT INTO `blog`.`user2`(`id`, `user_name`, `over`) VALUES (5, '狮驼王', '�
 ```
 
 
-
-## 子查询
-
-子查询：这个查询是另外一个查询的条件，称作子查询。
-
-select user_name from user1 where id in (select user_id from user_kills);
--- 使用子查询可以避免由于子查询中的数据产生的重复。
-select a.user_name from user1 a join user_kills b on a.id =b.user_id;
--- 会产生重复记录
-select distinct a.user_name from user1 a join user_kills b on a.id =b.user_id;
--- 使用distinct去除重复记录
-
-子查询转成join链接之后查询，注意数据重复的问题；
-
-子查询会自动过滤子查询中重复的记录的，但是join链接，会出现重复数据
-
-
-
-
 ## 列转行
 
 利用自身连接来实现：
@@ -378,6 +359,53 @@ ON a.user_name=b.user_name
 WHERE a.id<b.id;
 ```
 
+
+
+## 子查询
+
+子查询：这个查询是另外一个查询的条件，称作子查询。
+
+	select user_name from user1 where id in (select user_id from user_kills);
+	-- 使用子查询可以避免由于子查询中的数据产生的重复(子查询中的重复会被上面的语句忽略)。
+
+	select a.user_name from user1 a join user_kills b on a.id =b.user_id;
+	-- 会产生重复记录
+
+	select distinct a.user_name from user1 a join user_kills b on a.id =b.user_id;
+	-- 使用distinct去除重复记录
+
+子查询转成join链接之后查询，注意数据重复的问题；子查询会自动过滤子查询中重复的记录的，但是join链接，会出现重复数据。
+
+另一个子查询的例子：
+```
+select
+	a.user_name,
+	b.timestr,
+	kills
+from user1 a join user_kills b on a.id = b.user_id join (
+	select
+		user_id,
+		max(kills) as cnt
+	from user_kills
+	group by user_id) c on b.user_id = c.user_id and b.kills = c.cnt;
+```
+上面的例子可以改成用MySQL中独有的多列过滤：
+```
+select
+	a.user_name,
+	b.timestr,
+	kills
+from user1 a join user_kills b on a.id = b.user_id
+where (b.user_id, b.kills) in (
+	select
+		user_id,
+		max(kills)
+	from user_kills
+	group by user_id);
+```
+可以不止两列。
+
+## 同一属性多值过滤
 
 
 
