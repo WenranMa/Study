@@ -444,12 +444,13 @@ public class MailSession {
 
 #### 注入List
 有些时候，我们会有一系列接口相同，不同实现类的Bean。例如，注册用户时，我们要对email、password和name这3个变量进行验证。为了便于扩展，我们先定义验证接口：
-
+```java
 public interface Validator {
     void validate(String email, String password, String name);
 }
+```
 然后，分别使用3个Validator对用户参数进行验证：
-
+```java
 @Component
 public class EmailValidator implements Validator {
     public void validate(String email, String password, String name) {
@@ -476,8 +477,9 @@ public class NameValidator implements Validator {
         }
     }
 }
+```
 最后，我们通过一个Validators作为入口进行验证：
-
+```java
 @Component
 public class Validators {
     @Autowired
@@ -489,10 +491,11 @@ public class Validators {
         }
     }
 }
+```
 注意到Validators被注入了一个List<Validator>，Spring会自动把所有类型为Validator的Bean装配为一个List注入进来，这样一来，我们每新增一个Validator类型，就自动被Spring装配到Validators中了，非常方便。
 
 因为Spring是通过扫描classpath获取到所有的Bean，而List是有序的，要指定List中Bean的顺序，可以加上@Order注解：
-
+```java
 @Component
 @Order(1)
 public class EmailValidator implements Validator {
@@ -510,26 +513,25 @@ public class PasswordValidator implements Validator {
 public class NameValidator implements Validator {
     ...
 }
-可选注入
+```
+
+#### 可选注入
 默认情况下，当我们标记了一个@Autowired后，Spring如果没有找到对应类型的Bean，它会抛出NoSuchBeanDefinitionException异常。
 
 可以给@Autowired增加一个required = false的参数：
-
+```java
 @Component
 public class MailService {
     @Autowired(required = false)
     ZoneId zoneId = ZoneId.systemDefault();
     ...
 }
-这个参数告诉Spring容器，如果找到一个类型为ZoneId的Bean，就注入，如果找不到，就忽略。
+```
+这个参数告诉Spring容器，如果找到一个类型为ZoneId的Bean，就注入，如果找不到，就忽略。这种方式非常适合有定义就使用定义，没有就使用默认值的情况。
 
-这种方式非常适合有定义就使用定义，没有就使用默认值的情况。
-
-创建第三方Bean
-如果一个Bean不在我们自己的package管理之内，例如ZoneId，如何创建它？
-
-答案是我们自己在@Configuration类中编写一个Java方法创建并返回它，注意给方法标记一个@Bean注解：
-
+#### 创建第三方Bean
+如果一个Bean不在我们自己的package管理之内，例如ZoneId，如何创建它？答案是我们自己在@Configuration类中编写一个Java方法创建并返回它，注意给方法标记一个@Bean注解：
+```java
 @Configuration
 @ComponentScan
 public class AppConfig {
@@ -539,18 +541,20 @@ public class AppConfig {
         return ZoneId.of("Z");
     }
 }
+```
 Spring对标记为@Bean的方法只调用一次，因此返回的Bean仍然是单例。
 
-初始化和销毁
+#### 初始化和销毁
 有些时候，一个Bean在注入必要的依赖后，需要进行初始化（监听消息等）。在容器关闭时，有时候还需要清理资源（关闭连接池等）。我们通常会定义一个init()方法进行初始化，定义一个shutdown()方法进行清理，然后，引入JSR-250定义的Annotation：
-
+```xml
 <dependency>
     <groupId>javax.annotation</groupId>
     <artifactId>javax.annotation-api</artifactId>
     <version>1.3.2</version>
 </dependency>
+```
 在Bean的初始化和清理方法上标记@PostConstruct和@PreDestroy：
-
+```java
 @Component
 public class MailService {
     @Autowired(required = false)
@@ -566,20 +570,22 @@ public class MailService {
         System.out.println("Shutdown mail service");
     }
 }
+```
 Spring容器会对上述Bean做如下初始化流程：
 
-调用构造方法创建MailService实例；
-根据@Autowired进行注入；
-调用标记有@PostConstruct的init()方法进行初始化。
+- 调用构造方法创建MailService实例；
+- 根据@Autowired进行注入；
+- 调用标记有@PostConstruct的init()方法进行初始化。
+
 而销毁时，容器会首先调用标记有@PreDestroy的shutdown()方法。
 
 Spring只根据Annotation查找无参数方法，对方法名不作要求。
 
-使用别名
+#### 使用别名
 默认情况下，对一种类型的Bean，容器只创建一个实例。但有些时候，我们需要对一种类型的Bean创建多个实例。例如，同时连接多个数据库，就必须创建多个DataSource实例。
 
 如果我们在@Configuration类中创建了多个同类型的Bean：
-
+```java
 @Configuration
 @ComponentScan
 public class AppConfig {
@@ -593,10 +599,11 @@ public class AppConfig {
         return ZoneId.of("UTC+08:00");
     }
 }
+```
 Spring会报NoUniqueBeanDefinitionException异常，意思是出现了重复的Bean定义。
 
 这个时候，需要给每个Bean添加不同的名字：
-
+```java
 @Configuration
 @ComponentScan
 public class AppConfig {
@@ -611,13 +618,14 @@ public class AppConfig {
         return ZoneId.of("UTC+08:00");
     }
 }
+```
 可以用@Bean("name")指定别名，也可以用@Bean+@Qualifier("name")指定别名。
 
 存在多个同类型的Bean时，注入ZoneId又会报错：
 
 NoUniqueBeanDefinitionException: No qualifying bean of type 'java.time.ZoneId' available: expected single matching bean but found 2
 意思是期待找到唯一的ZoneId类型Bean，但是找到两。因此，注入时，要指定Bean的名称：
-
+```java
 @Component
 public class MailService {
     @Autowired(required = false)
@@ -625,8 +633,9 @@ public class MailService {
     ZoneId zoneId = ZoneId.systemDefault();
     ...
 }
+```
 还有一种方法是把其中某个Bean指定为@Primary：
-
+```java
 @Configuration
 @ComponentScan
 public class AppConfig {
@@ -643,8 +652,9 @@ public class AppConfig {
         return ZoneId.of("UTC+08:00");
     }
 }
+```
 这样，在注入时，如果没有指出Bean的名字，Spring会注入标记有@Primary的Bean。这种方式也很常用。例如，对于主从两个数据源，通常将主数据源定义为@Primary：
-
+```java
 @Configuration
 @ComponentScan
 public class AppConfig {
@@ -660,13 +670,14 @@ public class AppConfig {
         ...
     }
 }
+```
 其他Bean默认注入的就是主数据源。如果要注入从数据源，那么只需要指定名称即可。
 
-使用FactoryBean
+#### 使用FactoryBean
 我们在设计模式的工厂方法中讲到，很多时候，可以通过工厂模式创建对象。Spring也提供了工厂模式，允许定义一个工厂，然后由工厂创建真正的Bean。
 
 用工厂模式创建Bean需要实现FactoryBean接口。我们观察下面的代码：
-
+```java
 @Component
 public class ZoneIdFactoryBean implements FactoryBean<ZoneId> {
 
@@ -682,26 +693,582 @@ public class ZoneIdFactoryBean implements FactoryBean<ZoneId> {
         return ZoneId.class;
     }
 }
+```
 当一个Bean实现了FactoryBean接口后，Spring会先实例化这个工厂，然后调用getObject()创建真正的Bean。getObjectType()可以指定创建的Bean的类型，因为指定类型不一定与实际类型一致，可以是接口或抽象类。
 
 因此，如果定义了一个FactoryBean，要注意Spring创建的Bean实际上是这个FactoryBean的getObject()方法返回的Bean。为了和普通Bean区分，我们通常都以XxxFactoryBean命名。
 
-练习
-从下载练习：定制Bean （推荐使用IDE练习插件快速下载）
+### 使用Resource
+在Java程序中，我们经常会读取配置文件、资源文件等。使用Spring容器时，我们也可以把“文件”注入进来，方便程序读取。
 
-小结
-Spring默认使用Singleton创建Bean，也可指定Scope为Prototype；
+例如，AppService需要读取logo.txt这个文件，通常情况下，我们需要写很多繁琐的代码，主要是为了定位文件，打开InputStream。
 
-可将相同类型的Bean注入List；
+Spring提供了一个org.springframework.core.io.Resource（注意不是javax.annotation.Resource），它可以像String、int一样使用@Value注入：
+```java
+@Component
+public class AppService {
+    @Value("classpath:/logo.txt")
+    private Resource resource;
 
-可用@Autowired(required=false)允许可选注入；
+    private String logo;
 
-可用带@Bean标注的方法创建Bean；
+    @PostConstruct
+    public void init() throws IOException {
+        try (var reader = new BufferedReader(
+                new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
+            this.logo = reader.lines().collect(Collectors.joining("\n"));
+        }
+    }
+}
+```
+注入Resource最常用的方式是通过classpath，即类似classpath:/logo.txt表示在classpath中搜索logo.txt文件，然后，我们直接调用Resource.getInputStream()就可以获取到输入流，避免了自己搜索文件的代码。
 
-可使用@PostConstruct和@PreDestroy对Bean进行初始化和清理；
+也可以直接指定文件的路径，例如：
+```java
+@Value("file:/path/to/logo.txt")
+private Resource resource;
+```
+但使用classpath是最简单的方式。上述工程结构如下：
+```
+spring-ioc-resource
+├── pom.xml
+└── src
+    └── main
+        ├── java
+        │   └── com
+        │       └── itranswarp
+        │           └── learnjava
+        │               ├── AppConfig.java
+        │               └── AppService.java
+        └── resources
+            └── logo.txt
+```
+使用Maven的标准目录结构，所有资源文件放入src/main/resources即可。
 
-相同类型的Bean只能有一个指定为@Primary，其他必须用@Quanlifier("beanName")指定别名；
+### 注入配置
+在开发应用程序时，经常需要读取配置文件。最常用的配置方法是以key=value的形式写在.properties文件中。
 
-注入时，可通过别名@Quanlifier("beanName")指定某个Bean；
+例如，MailService根据配置的app.zone=Asia/Shanghai来决定使用哪个时区。要读取配置文件，我们可以使用上一节讲到的Resource来读取位于classpath下的一个app.properties文件。但是，这样仍然比较繁琐。
 
-可以定义FactoryBean来使用工厂模式创建Bean。
+Spring容器还提供了一个更简单的@PropertySource来自动读取配置文件。我们只需要在@Configuration配置类上再添加一个注解：
+```java
+@Configuration
+@ComponentScan
+@PropertySource("app.properties") // 表示读取classpath的app.properties
+public class AppConfig {
+    @Value("${app.zone:Z}")
+    String zoneId;
+
+    @Bean
+    ZoneId createZoneId() {
+        return ZoneId.of(zoneId);
+    }
+}
+```
+Spring容器看到@PropertySource("app.properties")注解后，自动读取这个配置文件，然后，我们使用@Value正常注入：
+```java
+@Value("${app.zone:Z}")
+String zoneId;
+```
+注意注入的字符串语法，它的格式如下：
+
+- "${app.zone}"表示读取key为app.zone的value，如果key不存在，启动将报错；
+- "${app.zone:Z}"表示读取key为app.zone的value，但如果key不存在，就使用默认值Z。
+
+这样一来，我们就可以根据app.zone的配置来创建ZoneId。
+
+还可以把注入的注解写到方法参数中：
+```java
+@Bean
+ZoneId createZoneId(@Value("${app.zone:Z}") String zoneId) {
+    return ZoneId.of(zoneId);
+}
+```
+可见，先使用@PropertySource读取配置文件，然后通过@Value以${key:defaultValue}的形式注入，可以极大地简化读取配置的麻烦。
+
+另一种注入配置的方式是先通过一个简单的JavaBean持有所有的配置，例如，一个SmtpConfig：
+```java
+@Component
+public class SmtpConfig {
+    @Value("${smtp.host}")
+    private String host;
+
+    @Value("${smtp.port:25}")
+    private int port;
+
+    public String getHost() {
+        return host;
+    }
+
+    public int getPort() {
+        return port;
+    }
+}
+```
+然后，在需要读取的地方，使用#{smtpConfig.host}注入：
+```java
+@Component
+public class MailService {
+    @Value("#{smtpConfig.host}")
+    private String smtpHost;
+
+    @Value("#{smtpConfig.port}")
+    private int smtpPort;
+}
+```
+注意观察#{}这种注入语法，它和${key}不同的是，#{}表示从JavaBean读取属性。"#{smtpConfig.host}"的意思是，从名称为smtpConfig的Bean读取host属性，即调用getHost()方法。一个Class名为SmtpConfig的Bean，它在Spring容器中的默认名称就是smtpConfig，除非用@Qualifier指定了名称。
+
+使用一个独立的JavaBean持有所有属性，然后在其他Bean中以#{bean.property}注入的好处是，多个Bean都可以引用同一个Bean的某个属性。例如，如果SmtpConfig决定从数据库中读取相关配置项，那么MailService注入的@Value("#{smtpConfig.host}")仍然可以不修改正常运行。
+
+### 使用条件装配
+开发应用程序时，我们会使用开发环境，例如，使用内存数据库以便快速启动。而运行在生产环境时，我们会使用生产环境，例如，使用MySQL数据库。如果应用程序可以根据自身的环境做一些适配，无疑会更加灵活。
+
+Spring为应用程序准备了Profile这一概念，用来表示不同的环境。例如，我们分别定义开发、测试和生产这3个环境：
+
+- native
+- test
+- production
+
+创建某个Bean时，Spring容器可以根据注解@Profile来决定是否创建。例如，以下配置：
+```java
+@Configuration
+@ComponentScan
+public class AppConfig {
+    @Bean
+    @Profile("!test")
+    ZoneId createZoneId() {
+        return ZoneId.systemDefault();
+    }
+
+    @Bean
+    @Profile("test")
+    ZoneId createZoneIdForTest() {
+        return ZoneId.of("America/New_York");
+    }
+}
+```
+如果当前的Profile设置为test，则Spring容器会调用createZoneIdForTest()创建ZoneId，否则，调用createZoneId()创建ZoneId。注意到@Profile("!test")表示非test环境。
+
+在运行程序时，加上JVM参数-Dspring.profiles.active=test就可以指定以test环境启动。
+
+实际上，Spring允许指定多个Profile，例如：-Dspring.profiles.active=test,master可以表示test环境，并使用master分支代码。
+
+要满足多个Profile条件，可以这样写：
+```java
+@Bean
+@Profile({ "test", "master" }) // 同时满足test和master
+ZoneId createZoneId() {
+    ...
+}
+```
+
+#### 使用Conditional
+除了根据@Profile条件来决定是否创建某个Bean外，Spring还可以根据@Conditional决定是否创建某个Bean。
+
+例如，我们对SmtpMailService添加如下注解：
+```java
+@Component
+@Conditional(OnSmtpEnvCondition.class)
+public class SmtpMailService implements MailService {
+    ...
+}
+```
+它的意思是，如果满足OnSmtpEnvCondition的条件，才会创建SmtpMailService这个Bean。OnSmtpEnvCondition的条件是什么呢？我们看一下代码：
+```java
+public class OnSmtpEnvCondition implements Condition {
+    public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
+        return "true".equalsIgnoreCase(System.getenv("smtp"));
+    }
+}
+```
+因此，OnSmtpEnvCondition的条件是存在环境变量smtp，值为true。这样，我们就可以通过环境变量来控制是否创建SmtpMailService。
+
+Spring只提供了@Conditional注解，具体判断逻辑还需要我们自己实现。Spring Boot提供了更多使用起来更简单的条件注解，例如，如果配置文件中存在app.smtp=true，则创建MailService：
+```java
+@Component
+@ConditionalOnProperty(name="app.smtp", havingValue="true")
+public class MailService {
+    ...
+}
+```
+如果当前classpath中存在类javax.mail.Transport，则创建MailService：
+```java
+@Component
+@ConditionalOnClass(name = "javax.mail.Transport")
+public class MailService {
+    ...
+}
+```
+后续我们会介绍Spring Boot的条件装配。我们以文件存储为例，假设我们需要保存用户上传的头像，并返回存储路径，在本地开发运行时，我们总是存储到文件：
+```java
+@Component
+@ConditionalOnProperty(name = "app.storage", havingValue = "file", matchIfMissing = true)
+public class FileUploader implements Uploader {
+    ...
+}
+```
+在生产环境运行时，我们会把文件存储到类似AWS S3上：
+```java
+@Component
+@ConditionalOnProperty(name = "app.storage", havingValue = "s3")
+public class S3Uploader implements Uploader {
+    ...
+}
+```
+其他需要存储的服务则注入Uploader：
+```java
+@Component
+public class UserImageService {
+    @Autowired
+    Uploader uploader;
+}
+```
+当应用程序检测到配置文件存在app.storage=s3时，自动使用S3Uploader，如果存在配置app.storage=file，或者配置app.storage不存在，则使用FileUploader。
+
+可见，使用条件注解，能更灵活地装配Bean。
+
+
+## 使用AOP
+AOP是Aspect Oriented Programming，即面向切面编程。那什么是AOP？我们先回顾一下OOP：Object Oriented Programming，OOP作为面向对象编程的模式，获得了巨大的成功，OOP的主要功能是数据封装、继承和多态。
+
+而AOP是一种新的编程方式，它和OOP不同，OOP把系统看作多个对象的交互，AOP把系统分解为不同的关注点，或者称之为切面（Aspect）。
+
+要理解AOP的概念，我们先用OOP举例，比如一个业务组件BookService，它有几个业务方法：
+
+- createBook：添加新的Book；
+- updateBook：修改Book；
+- deleteBook：删除Book。
+
+对每个业务方法，例如，createBook()，除了业务逻辑，还需要安全检查、日志记录和事务处理，它的代码像这样：
+```java
+public class BookService {
+    public void createBook(Book book) {
+        securityCheck();
+        Transaction tx = startTransaction();
+        try {
+            // 核心业务逻辑
+            tx.commit();
+        } catch (RuntimeException e) {
+            tx.rollback();
+            throw e;
+        }
+        log("created book: " + book);
+    }
+}
+```
+继续编写updateBook()，代码如下：
+```java
+public class BookService {
+    public void updateBook(Book book) {
+        securityCheck();
+        Transaction tx = startTransaction();
+        try {
+            // 核心业务逻辑
+            tx.commit();
+        } catch (RuntimeException e) {
+            tx.rollback();
+            throw e;
+        }
+        log("updated book: " + book);
+    }
+}
+```
+对于安全检查、日志、事务等代码，它们会重复出现在每个业务方法中。使用OOP，我们很难将这些四处分散的代码模块化。
+
+考察业务模型可以发现，BookService关心的是自身的核心逻辑，但整个系统还要求关注安全检查、日志、事务等功能，这些功能实际上“横跨”多个业务方法，为了实现这些功能，不得不在每个业务方法上重复编写代码。
+
+一种可行的方式是使用Proxy模式，将某个功能，例如，权限检查，放入Proxy中：
+```java
+public class SecurityCheckBookService implements BookService {
+    private final BookService target;
+
+    public SecurityCheckBookService(BookService target) {
+        this.target = target;
+    }
+
+    public void createBook(Book book) {
+        securityCheck();
+        target.createBook(book);
+    }
+
+    public void updateBook(Book book) {
+        securityCheck();
+        target.updateBook(book);
+    }
+
+    public void deleteBook(Book book) {
+        securityCheck();
+        target.deleteBook(book);
+    }
+
+    private void securityCheck() {
+        ...
+    }
+}
+```
+这种方式的缺点是比较麻烦，必须先抽取接口，然后，针对每个方法实现Proxy。
+
+另一种方法是，既然SecurityCheckBookService的代码都是标准的Proxy样板代码，不如把权限检查视作一种切面（Aspect），把日志、事务也视为切面，然后，以某种自动化的方式，把切面织入到核心逻辑中，实现Proxy模式。
+
+如果我们以AOP的视角来编写上述业务，可以依次实现：
+
+- 核心逻辑，即BookService；
+- 切面逻辑，即：
+- 权限检查的Aspect；
+- 日志的Aspect；
+- 事务的Aspect。
+
+然后，以某种方式，让框架来把上述3个Aspect以Proxy的方式“织入”到BookService中，这样一来，就不必编写复杂而冗长的Proxy模式。
+
+#### AOP原理
+如何把切面织入到核心逻辑中？这正是AOP需要解决的问题。换句话说，如果客户端获得了BookService的引用，当调用bookService.createBook()时，如何对调用方法进行拦截，并在拦截前后进行安全检查、日志、事务等处理，就相当于完成了所有业务功能。
+
+在Java平台上，对于AOP的织入，有3种方式：
+
+1. 编译期：在编译时，由编译器把切面调用编译进字节码，这种方式需要定义新的关键字并扩展编译器，AspectJ就扩展了Java编译器，使用关键字aspect来实现织入；
+2. 类加载器：在目标类被装载到JVM时，通过一个特殊的类加载器，对目标类的字节码重新“增强”；
+3. 运行期：目标对象和切面都是普通Java类，通过JVM的动态代理功能或者第三方库实现运行期动态织入。
+
+最简单的方式是第三种，Spring的AOP实现就是基于JVM的动态代理。由于JVM的动态代理要求必须实现接口，如果一个普通类没有业务接口，就需要通过CGLIB或者Javassist这些第三方库实现。
+
+AOP技术看上去比较神秘，但实际上，它本质就是一个动态代理，让我们把一些常用功能如权限检查、日志、事务等，从每个业务方法中剥离出来。
+
+需要特别指出的是，AOP对于解决特定问题，例如事务管理非常有用，这是因为分散在各处的事务代码几乎是完全相同的，并且它们需要的参数（JDBC的Connection）也是固定的。另一些特定问题，如日志，就不那么容易实现，因为日志虽然简单，但打印日志的时候，经常需要捕获局部变量，如果使用AOP实现日志，我们只能输出固定格式的日志，因此，使用AOP时，必须适合特定的场景。
+
+### 装配AOP
+在AOP编程中，我们经常会遇到下面的概念：
+
+- Aspect：切面，即一个横跨多个核心逻辑的功能，或者称之为系统关注点；
+- Joinpoint：连接点，即定义在应用程序流程的何处插入切面的执行；
+- Pointcut：切入点，即一组连接点的集合；
+- Advice：增强，指特定连接点上执行的动作；
+- Introduction：引介，指为一个已有的Java对象动态地增加新的接口；
+- Weaving：织入，指将切面整合到程序的执行流程中；
+- Interceptor：拦截器，是一种实现增强的方式；
+- Target Object：目标对象，即真正执行业务的核心逻辑对象；
+- AOP Proxy：AOP代理，是客户端持有的增强后的对象引用。
+
+看完上述术语，是不是感觉对AOP有了进一步的困惑？其实，我们不用关心AOP创造的“术语”，只需要理解AOP本质上只是一种代理模式的实现方式，在Spring的容器中实现AOP特别方便。
+
+我们以UserService和MailService为例，这两个属于核心业务逻辑，现在，我们准备给UserService的每个业务方法执行前添加日志，给MailService的每个业务方法执行前后添加日志，在Spring中，需要以下步骤：
+
+首先，我们通过Maven引入Spring对AOP的支持：
+```xml
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-aspects</artifactId>
+    <version>${spring.version}</version>
+</dependency>
+```
+上述依赖会自动引入AspectJ，使用AspectJ实现AOP比较方便，因为它的定义比较简单。
+
+然后，我们定义一个LoggingAspect：
+```java
+@Aspect
+@Component
+public class LoggingAspect {
+    // 在执行UserService的每个方法前执行:
+    @Before("execution(public * com.itranswarp.learnjava.service.UserService.*(..))")
+    public void doAccessCheck() {
+        System.err.println("[Before] do access check...");
+    }
+
+    // 在执行MailService的每个方法前后执行:
+    @Around("execution(public * com.itranswarp.learnjava.service.MailService.*(..))")
+    public Object doLogging(ProceedingJoinPoint pjp) throws Throwable {
+        System.err.println("[Around] start " + pjp.getSignature());
+        Object retVal = pjp.proceed();
+        System.err.println("[Around] done " + pjp.getSignature());
+        return retVal;
+    }
+}
+```
+观察doAccessCheck()方法，我们定义了一个@Before注解，后面的字符串是告诉AspectJ应该在何处执行该方法，这里写的意思是：执行UserService的每个public方法前执行doAccessCheck()代码。
+
+再观察doLogging()方法，我们定义了一个@Around注解，它和@Before不同，@Around可以决定是否执行目标方法，因此，我们在doLogging()内部先打印日志，再调用方法，最后打印日志后返回结果。
+
+在LoggingAspect类的声明处，除了用@Component表示它本身也是一个Bean外，我们再加上@Aspect注解，表示它的@Before标注的方法需要注入到UserService的每个public方法执行前，@Around标注的方法需要注入到MailService的每个public方法执行前后。
+
+紧接着，我们需要给@Configuration类加上一个@EnableAspectJAutoProxy注解：
+```java
+@Configuration
+@ComponentScan
+@EnableAspectJAutoProxy
+public class AppConfig {
+    ...
+}
+```
+Spring的IoC容器看到这个注解，就会自动查找带有@Aspect的Bean，然后根据每个方法的@Before、@Around等注解把AOP注入到特定的Bean中。执行代码，我们可以看到以下输出：
+```
+[Before] do access check...
+[Around] start void com.itranswarp.learnjava.service.MailService.sendRegistrationMail(User)
+Welcome, test!
+[Around] done void com.itranswarp.learnjava.service.MailService.sendRegistrationMail(User)
+[Before] do access check...
+[Around] start void com.itranswarp.learnjava.service.MailService.sendLoginMail(User)
+Hi, Bob! You are logged in at 2020-02-14T23:13:52.167996+08:00[Asia/Shanghai]
+[Around] done void com.itranswarp.learnjava.service.MailService.sendLoginMail(User)
+```
+这说明执行业务逻辑前后，确实执行了我们定义的Aspect（即LoggingAspect的方法）。
+
+有些童鞋会问，LoggingAspect定义的方法，是如何注入到其他Bean的呢？
+
+其实AOP的原理非常简单。我们以LoggingAspect.doAccessCheck()为例，要把它注入到UserService的每个public方法中，最简单的方法是编写一个子类，并持有原始实例的引用：
+```java
+public UserServiceAopProxy extends UserService {
+    private UserService target;
+    private LoggingAspect aspect;
+
+    public UserServiceAopProxy(UserService target, LoggingAspect aspect) {
+        this.target = target;
+        this.aspect = aspect;
+    }
+
+    public User login(String email, String password) {
+        // 先执行Aspect的代码:
+        aspect.doAccessCheck();
+        // 再执行UserService的逻辑:
+        return target.login(email, password);
+    }
+
+    public User register(String email, String password, String name) {
+        aspect.doAccessCheck();
+        return target.register(email, password, name);
+    }
+
+    ...
+}
+```
+这些都是Spring容器启动时为我们自动创建的注入了Aspect的子类，它取代了原始的UserService（原始的UserService实例作为内部变量隐藏在UserServiceAopProxy中）。如果我们打印从Spring容器获取的UserService实例类型，它类似`UserService$$EnhancerBySpringCGLIB$$1f44e01c`，实际上是Spring使用CGLIB动态创建的子类，但对于调用方来说，感觉不到任何区别。
+
+Spring对接口类型使用JDK动态代理，对普通类使用CGLIB创建子类。如果一个Bean的class是final，Spring将无法为其创建子类。
+可见，虽然Spring容器内部实现AOP的逻辑比较复杂（需要使用AspectJ解析注解，并通过CGLIB实现代理类），但我们使用AOP非常简单，一共需要三步：
+
+- 定义执行方法，并在方法上通过AspectJ的注解告诉Spring应该在何处调用此方法；
+- 标记@Component和@Aspect；
+- 在@Configuration类上标注@EnableAspectJAutoProxy。
+
+Spring也提供其他方法来装配AOP，但都没有使用AspectJ注解的方式来得简洁明了，所以我们不再作介绍。
+
+#### 拦截器类型
+顾名思义，拦截器有以下类型：
+
+- @Before：这种拦截器先执行拦截代码，再执行目标代码。如果拦截器抛异常，那么目标代码就不执行了；
+- @After：这种拦截器先执行目标代码，再执行拦截器代码。无论目标代码是否抛异常，拦截器代码都会执行；
+- @AfterReturning：和@After不同的是，只有当目标代码正常返回时，才执行拦截器代码；
+- @AfterThrowing：和@After不同的是，只有当目标代码抛出了异常时，才执行拦截器代码；
+- @Around：能完全控制目标代码是否执行，并可以在执行前后、抛异常后执行任意拦截代码，可以说是包含了上面所有功能。
+
+### 使用注解装配AOP
+上一节我们讲解了使用AspectJ的注解，并配合一个复杂的execution(* xxx.Xyz.*(..))语法来定义应该如何装配AOP。
+
+在实际项目中，这种写法其实很少使用。假设你写了一个SecurityAspect：
+```java
+@Aspect
+@Component
+public class SecurityAspect {
+    @Before("execution(public * com.itranswarp.learnjava.service.*.*(..))")
+    public void check() {
+        if (SecurityContext.getCurrentUser() == null) {
+            throw new RuntimeException("check failed");
+        }
+    }
+}
+```
+基本能实现无差别全覆盖，即某个包下面的所有Bean的所有方法都会被这个check()方法拦截。
+
+还有的童鞋喜欢用方法名前缀进行拦截：
+```java
+@Around("execution(public * update*(..))")
+public Object doLogging(ProceedingJoinPoint pjp) throws Throwable {
+    // 对update开头的方法切换数据源:
+    String old = setCurrentDataSource("master");
+    Object retVal = pjp.proceed();
+    restoreCurrentDataSource(old);
+    return retVal;
+}
+```
+这种非精准打击误伤面更大，因为从方法前缀区分是否是数据库操作是非常不可取的。
+
+我们在使用AOP时，要注意到虽然Spring容器可以把指定的方法通过AOP规则装配到指定的Bean的指定方法前后，但是，如果自动装配时，因为不恰当的范围，容易导致意想不到的结果，即很多不需要AOP代理的Bean也被自动代理了，并且，后续新增的Bean，如果不清楚现有的AOP装配规则，容易被强迫装配。
+
+使用AOP时，被装配的Bean最好自己能清清楚楚地知道自己被安排了。例如，Spring提供的@Transactional就是一个非常好的例子。如果我们自己写的Bean希望在一个数据库事务中被调用，就标注上@Transactional：
+```java
+@Component
+public class UserService {
+    // 有事务:
+    @Transactional
+    public User createUser(String name) {
+        ...
+    }
+
+    // 无事务:
+    public boolean isValidName(String name) {
+        ...
+    }
+
+    // 有事务:
+    @Transactional
+    public void updateUser(User user) {
+        ...
+    }
+}
+```
+或者直接在class级别注解，表示“所有public方法都被安排了”：
+```java
+@Component
+@Transactional
+public class UserService {
+    ...
+}
+```
+通过@Transactional，某个方法是否启用了事务就一清二楚了。因此，装配AOP的时候，使用注解是最好的方式。
+
+我们以一个实际例子演示如何使用注解实现AOP装配。为了监控应用程序的性能，我们定义一个性能监控的注解：
+```java
+@Target(METHOD)
+@Retention(RUNTIME)
+public @interface MetricTime {
+    String value();
+}
+```
+在需要被监控的关键方法上标注该注解：
+```java
+@Component
+public class UserService {
+    // 监控register()方法性能:
+    @MetricTime("register")
+    public User register(String email, String password, String name) {
+        ...
+    }
+    ...
+}
+```
+然后，我们定义MetricAspect：
+```java
+@Aspect
+@Component
+public class MetricAspect {
+    @Around("@annotation(metricTime)")
+    public Object metric(ProceedingJoinPoint joinPoint, MetricTime metricTime) throws Throwable {
+        String name = metricTime.value();
+        long start = System.currentTimeMillis();
+        try {
+            return joinPoint.proceed();
+        } finally {
+            long t = System.currentTimeMillis() - start;
+            // 写入日志或发送至JMX:
+            System.err.println("[Metrics] " + name + ": " + t + "ms");
+        }
+    }
+}
+```
+注意metric()方法标注了@Around("@annotation(metricTime)")，它的意思是，符合条件的目标方法是带有@MetricTime注解的方法，因为metric()方法参数类型是MetricTime（注意参数名是metricTime不是MetricTime），我们通过它获取性能监控的名称。
+
+有了@MetricTime注解，再配合MetricAspect，任何Bean，只要方法标注了@MetricTime注解，就可以自动实现性能监控。运行代码，输出结果如下：
+```
+Welcome, Bob!
+[Metrics] register: 16ms
+```
+
+
