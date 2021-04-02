@@ -1271,4 +1271,824 @@ Welcome, Bob!
 [Metrics] register: 16ms
 ```
 
+### AOP避坑指南
+无论是使用AspectJ语法，还是配合Annotation，使用AOP，实际上就是让Spring自动为我们创建一个Proxy，使得调用方能无感知地调用指定方法，但运行期却动态“织入”了其他逻辑，因此，AOP本质上就是一个代理模式。
+
+因为Spring使用了CGLIB来实现运行期动态创建Proxy，如果我们没能深入理解其运行原理和实现机制，就极有可能遇到各种诡异的问题。
+
+我们来看一个实际的例子。假设我们定义了一个UserService的Bean：
+```java
+@Component
+public class UserService {
+    // 成员变量:
+    public final ZoneId zoneId = ZoneId.systemDefault();
+
+    // 构造方法:
+    public UserService() {
+        System.out.println("UserService(): init...");
+        System.out.println("UserService(): zoneId = " + this.zoneId);
+    }
+
+    // public方法:
+    public ZoneId getZoneId() {
+        return zoneId;
+    }
+
+    // public final方法:
+    public final ZoneId getFinalZoneId() {
+        return zoneId;
+    }
+}
+```
+再写个MailService，并注入UserService：
+```java
+@Component
+public class MailService {
+    @Autowired
+    UserService userService;
+
+    public String sendMail() {
+        ZoneId zoneId = userService.zoneId;
+        String dt = ZonedDateTime.now(zoneId).toString();
+        return "Hello, it is " + dt;
+    }
+}
+```
+最后用main()方法测试一下：
+```java
+@Configuration
+@ComponentScan
+public class AppConfig {
+    public static void main(String[] args) {
+        ApplicationContext context = new AnnotationConfigApplicationContext(AppConfig.class);
+        MailService mailService = context.getBean(MailService.class);
+        System.out.println(mailService.sendMail());
+    }
+}
+```
+查看输出，一切正常：
+```
+UserService(): init...
+UserService(): zoneId = Asia/Shanghai
+Hello, it is 2020-04-12T10:23:22.917721+08:00[Asia/Shanghai]
+```
+下一步，我们给UserService加上AOP支持，就添加一个最简单的LoggingAspect：
+```java
+@Aspect
+@Component
+public class LoggingAspect {
+    @Before("execution(public * com..*.UserService.*(..))")
+    public void doAccessCheck() {
+        System.err.println("[Before] do access check...");
+    }
+}
+```
+别忘了在AppConfig上加上@EnableAspectJAutoProxy。再次运行，不出意外的话，会得到一个NullPointerException：
+```
+Exception in thread "main" java.lang.NullPointerException: zone
+    at java.base/java.util.Objects.requireNonNull(Objects.java:246)
+    at java.base/java.time.Clock.system(Clock.java:203)
+    at java.base/java.time.ZonedDateTime.now(ZonedDateTime.java:216)
+    at com.itranswarp.learnjava.service.MailService.sendMail(MailService.java:19)
+    at com.itranswarp.learnjava.AppConfig.main(AppConfig.java:21)
+```
+仔细跟踪代码，会发现null值出现在MailService.sendMail()内部的这一行代码：
+```java
+@Component
+public class MailService {
+    @Autowired
+    UserService userService;
+
+    public String sendMail() {
+        ZoneId zoneId = userService.zoneId;
+        System.out.println(zoneId); // null
+        ...
+    }
+}
+```
+我们还故意在UserService中特意用final修饰了一下成员变量：
+```java
+@Component
+public class UserService {
+    public final ZoneId zoneId = ZoneId.systemDefault();
+    ...
+}
+```
+用final标注的成员变量为null？为什么加了AOP就报NPE，去了AOP就一切正常？final字段不执行，难道JVM有问题？为了解答这个诡异的问题，我们需要深入理解Spring使用CGLIB生成Proxy的原理：
+
+第一步，正常创建一个UserService的原始实例，这是通过反射调用构造方法实现的，它的行为和我们预期的完全一致；
+
+第二步，通过CGLIB创建一个UserService的子类，并引用了原始实例和LoggingAspect：
+```java
+public UserService$$EnhancerBySpringCGLIB extends UserService {
+    UserService target;
+    LoggingAspect aspect;
+
+    public UserService$$EnhancerBySpringCGLIB() {
+    }
+
+    public ZoneId getZoneId() {
+        aspect.doAccessCheck();
+        return target.getZoneId();
+    }
+}
+```
+
+如果我们观察Spring创建的AOP代理，它的类名总是类似UserService$$EnhancerBySpringCGLIB$$1c76af9d（你没看错，Java的类名实际上允许$字符）。为了让调用方获得UserService的引用，它必须继承自UserService。然后，该代理类会覆写所有public和protected方法，并在内部将调用委托给原始的UserService实例。
+
+这里出现了两个UserService实例：
+
+一个是我们代码中定义的原始实例，它的成员变量已经按照我们预期的方式被初始化完成：`UserService original = new UserService();`
+
+第二个UserService实例实际上类型是`UserService$$EnhancerBySpringCGLIB`，它引用了原始的UserService实例：
+```java
+UserService$$EnhancerBySpringCGLIB proxy = new UserService$$EnhancerBySpringCGLIB();
+proxy.target = original;
+proxy.aspect = ...
+```
+注意到这种情况仅出现在启用了AOP的情况，此刻，从ApplicationContext中获取的UserService实例是proxy，注入到MailService中的UserService实例也是proxy。
+
+那么最终的问题来了：proxy实例的成员变量，也就是从UserService继承的zoneId，它的值是null。
+
+原因在于，UserService成员变量的初始化：
+```java
+public class UserService {
+    public final ZoneId zoneId = ZoneId.systemDefault();
+    ...
+}
+```
+在`UserService$$EnhancerBySpringCGLIB`中，并未执行。原因是，没必要初始化proxy的成员变量，因为proxy的目的是代理方法。
+
+实际上，成员变量的初始化是在构造方法中完成的。这是我们看到的代码：
+```java
+public class UserService {
+    public final ZoneId zoneId = ZoneId.systemDefault();
+    public UserService() {
+    }
+}
+```
+这是编译器实际编译的代码：
+```java
+public class UserService {
+    public final ZoneId zoneId;
+    public UserService() {
+        super(); // 构造方法的第一行代码总是调用super()
+        zoneId = ZoneId.systemDefault(); // 继续初始化成员变量
+    }
+}
+```
+然而，对于Spring通过CGLIB动态创建的`UserService$$EnhancerBySpringCGLIB`代理类，它的构造方法中，并未调用super()，因此，从父类继承的成员变量，包括final类型的成员变量，统统都没有初始化。
+
+有的童鞋会问：Java语言规定，任何类的构造方法，第一行必须调用super()，如果没有，编译器会自动加上，怎么Spring的CGLIB就可以搞特殊？
+
+这是因为自动加super()的功能是Java编译器实现的，它发现你没加，就自动给加上，发现你加错了，就报编译错误。但实际上，如果直接构造字节码，一个类的构造方法中，不一定非要调用super()。Spring使用CGLIB构造的Proxy类，是直接生成字节码，并没有源码-编译-字节码这个步骤，因此：
+
+Spring通过CGLIB创建的代理类，不会初始化代理类自身继承的任何成员变量，包括final类型的成员变量！
+再考察MailService的代码：
+```java
+@Component
+public class MailService {
+    @Autowired
+    UserService userService;
+
+    public String sendMail() {
+        ZoneId zoneId = userService.zoneId;
+        System.out.println(zoneId); // null
+        ...
+    }
+}
+```
+如果没有启用AOP，注入的是原始的UserService实例，那么一切正常，因为UserService实例的zoneId字段已经被正确初始化了。
+
+如果启动了AOP，注入的是代理后的UserService$$EnhancerBySpringCGLIB实例，那么问题大了：获取的UserService$$EnhancerBySpringCGLIB实例的zoneId字段，永远为null。
+
+那么问题来了：启用了AOP，如何修复？
+
+修复很简单，只需要把直接访问字段的代码，改为通过方法访问：
+```java
+@Component
+public class MailService {
+    @Autowired
+    UserService userService;
+
+    public String sendMail() {
+        // 不要直接访问UserService的字段:
+        ZoneId zoneId = userService.getZoneId();
+        ...
+    }
+}
+```
+无论注入的UserService是原始实例还是代理实例，getZoneId()都能正常工作，因为代理类会覆写getZoneId()方法，并将其委托给原始实例：
+```java
+public UserService$$EnhancerBySpringCGLIB extends UserService {
+    UserService target = ...
+    ...
+
+    public ZoneId getZoneId() {
+        return target.getZoneId();
+    }
+}
+```
+注意到我们还给UserService添加了一个public+final的方法：
+```java
+@Component
+public class UserService {
+    ...
+    public final ZoneId getFinalZoneId() {
+        return zoneId;
+    }
+}
+```
+如果在MailService中，调用的不是getZoneId()，而是getFinalZoneId()，又会出现NullPointerException，这是因为，代理类无法覆写final方法（这一点绕不过JVM的ClassLoader检查），该方法返回的是代理类的zoneId字段，即null。
+
+实际上，如果我们加上日志，Spring在启动时会打印一个警告：
+```
+10:43:09.929 [main] DEBUG org.springframework.aop.framework.CglibAopProxy - Final method [public final java.time.ZoneId xxx.UserService.getFinalZoneId()] cannot get proxied via CGLIB: Calls to this method will NOT be routed to the target instance and might lead to NPEs against uninitialized fields in the proxy instance.
+```
+上面的日志大意就是，因为被代理的UserService有一个final方法getFinalZoneId()，这会导致其他Bean如果调用此方法，无法将其代理到真正的原始实例，从而可能发生NPE异常。
+
+因此，正确使用AOP，我们需要一个避坑指南：
+
+- 访问被注入的Bean时，总是调用方法而非直接访问字段；
+- 编写Bean时，如果可能会被代理，就不要编写public final方法。
+
+这样才能保证有没有AOP，代码都能正常工作。
+
+
+## 访问数据库
+数据库基本上是现代应用程序的标准存储，绝大多数程序都把自己的业务数据存储在关系数据库中，可见，访问数据库几乎是所有应用程序必备能力。
+
+我们在前面已经介绍了Java程序访问数据库的标准接口JDBC，它的实现方式非常简洁，即：Java标准库定义接口，各数据库厂商以“驱动”的形式实现接口。应用程序要使用哪个数据库，就把该数据库厂商的驱动以jar包形式引入进来，同时自身仅使用JDBC接口，编译期并不需要特定厂商的驱动。
+
+使用JDBC虽然简单，但代码比较繁琐。Spring为了简化数据库访问，主要做了以下几点工作：
+
+- 提供了简化的访问JDBC的模板类，不必手动释放资源；
+- 提供了一个统一的DAO类以实现Data Access Object模式；
+- 把SQLException封装为DataAccessException，这个异常是一个RuntimeException，并且让我们能区分SQL异常的原因，例如，DuplicateKeyException表示违反了一个唯一约束；
+- 能方便地集成Hibernate、JPA和MyBatis这些数据库访问框架。
+
+### 使用JDBC
+我们在前面介绍JDBC编程时已经讲过，Java程序使用JDBC接口访问关系数据库的时候，需要以下几步：
+
+- 创建全局DataSource实例，表示数据库连接池；
+- 在需要读写数据库的方法内部，按如下步骤访问数据库：
+- 从全局DataSource实例获取Connection实例；
+- 通过Connection实例创建PreparedStatement实例；
+- 执行SQL语句，如果是查询，则通过ResultSet读取结果集，如果是修改，则获得int结果。
+- 正确编写JDBC代码的关键是使用try ... finally释放资源，涉及到事务的代码需要正确提交或回滚事务。
+
+在Spring使用JDBC，首先我们通过IoC容器创建并管理一个DataSource实例，然后，Spring提供了一个JdbcTemplate，可以方便地让我们操作JDBC，因此，通常情况下，我们会实例化一个JdbcTemplate。顾名思义，这个类主要使用了Template模式。
+
+编写示例代码或者测试代码时，我们强烈推荐使用HSQLDB这个数据库，它是一个用Java编写的关系数据库，可以以内存模式或者文件模式运行，本身只有一个jar包，非常适合演示代码或者测试代码。
+
+我们以实际工程为例，先创建Maven工程spring-data-jdbc，然后引入以下依赖：
+```xml
+<dependencies>
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-context</artifactId>
+        <version>5.2.0.RELEASE</version>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-jdbc</artifactId>
+        <version>5.2.0.RELEASE</version>
+    </dependency>
+    <dependency>
+        <groupId>javax.annotation</groupId>
+        <artifactId>javax.annotation-api</artifactId>
+        <version>1.3.2</version>
+    </dependency>
+    <dependency>
+        <groupId>com.zaxxer</groupId>
+        <artifactId>HikariCP</artifactId>
+        <version>3.4.2</version>
+    </dependency>
+    <dependency>
+        <groupId>org.hsqldb</groupId>
+        <artifactId>hsqldb</artifactId>
+        <version>2.5.0</version>
+    </dependency>
+</dependencies>
+```
+在AppConfig中，我们需要创建以下几个必须的Bean：
+```java
+@Configuration
+@ComponentScan
+@PropertySource("jdbc.properties")
+public class AppConfig {
+
+    @Value("${jdbc.url}")
+    String jdbcUrl;
+
+    @Value("${jdbc.username}")
+    String jdbcUsername;
+
+    @Value("${jdbc.password}")
+    String jdbcPassword;
+
+    @Bean
+    DataSource createDataSource() {
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(jdbcUrl);
+        config.setUsername(jdbcUsername);
+        config.setPassword(jdbcPassword);
+        config.addDataSourceProperty("autoCommit", "true");
+        config.addDataSourceProperty("connectionTimeout", "5");
+        config.addDataSourceProperty("idleTimeout", "60");
+        return new HikariDataSource(config);
+    }
+
+    @Bean
+    JdbcTemplate createJdbcTemplate(@Autowired DataSource dataSource) {
+        return new JdbcTemplate(dataSource);
+    }
+}
+```
+在上述配置中：
+
+- 通过@PropertySource("jdbc.properties")读取数据库配置文件；
+- 通过@Value("${jdbc.url}")注入配置文件的相关配置；
+- 创建一个DataSource实例，它的实际类型是HikariDataSource，创建时需要用到注入的配置；
+- 创建一个JdbcTemplate实例，它需要注入DataSource，这是通过方法参数完成注入的。
+
+最后，针对HSQLDB写一个配置文件jdbc.properties：
+```
+# 数据库文件名为testdb:
+jdbc.url=jdbc:hsqldb:file:testdb
+
+# Hsqldb默认的用户名是sa，口令是空字符串:
+jdbc.username=sa
+jdbc.password=
+```
+可以通过HSQLDB自带的工具来初始化数据库表，这里我们写一个Bean，在Spring容器启动时自动创建一个users表：
+```java
+@Component
+public class DatabaseInitializer {
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+
+    @PostConstruct
+    public void init() {
+        jdbcTemplate.update("CREATE TABLE IF NOT EXISTS users (" //
+                + "id BIGINT IDENTITY NOT NULL PRIMARY KEY, " //
+                + "email VARCHAR(100) NOT NULL, " //
+                + "password VARCHAR(100) NOT NULL, " //
+                + "name VARCHAR(100) NOT NULL, " //
+                + "UNIQUE (email))");
+    }
+}
+```
+现在，所有准备工作都已完毕。我们只需要在需要访问数据库的Bean中，注入JdbcTemplate即可：
+```java
+@Component
+public class UserService {
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+    ...
+}
+```
+
+#### JdbcTemplate用法
+Spring提供的JdbcTemplate采用Template模式，提供了一系列以回调为特点的工具方法，目的是避免繁琐的try...catch语句。
+
+我们以具体的示例来说明JdbcTemplate的用法。
+
+首先我们看T execute(ConnectionCallback<T> action)方法，它提供了Jdbc的Connection供我们使用：
+```java
+public User getUserById(long id) {
+    // 注意传入的是ConnectionCallback:
+    return jdbcTemplate.execute((Connection conn) -> {
+        // 可以直接使用conn实例，不要释放它，回调结束后JdbcTemplate自动释放:
+        // 在内部手动创建的PreparedStatement、ResultSet必须用try(...)释放:
+        try (var ps = conn.prepareStatement("SELECT * FROM users WHERE id = ?")) {
+            ps.setObject(1, id);
+            try (var rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new User( // new User object:
+                            rs.getLong("id"), // id
+                            rs.getString("email"), // email
+                            rs.getString("password"), // password
+                            rs.getString("name")); // name
+                }
+                throw new RuntimeException("user not found by id.");
+            }
+        }
+    });
+}
+```
+也就是说，上述回调方法允许获取Connection，然后做任何基于Connection的操作。
+
+我们再看T execute(String sql, PreparedStatementCallback<T> action)的用法：
+```java
+public User getUserByName(String name) {
+    // 需要传入SQL语句，以及PreparedStatementCallback:
+    return jdbcTemplate.execute("SELECT * FROM users WHERE name = ?", (PreparedStatement ps) -> {
+        // PreparedStatement实例已经由JdbcTemplate创建，并在回调后自动释放:
+        ps.setObject(1, name);
+        try (var rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return new User( // new User object:
+                        rs.getLong("id"), // id
+                        rs.getString("email"), // email
+                        rs.getString("password"), // password
+                        rs.getString("name")); // name
+            }
+            throw new RuntimeException("user not found by id.");
+        }
+    });
+}
+```
+最后，我们看T queryForObject(String sql, Object[] args, RowMapper<T> rowMapper)方法：
+```java
+public User getUserByEmail(String email) {
+    // 传入SQL，参数和RowMapper实例:
+    return jdbcTemplate.queryForObject("SELECT * FROM users WHERE email = ?", new Object[] { email },
+            (ResultSet rs, int rowNum) -> {
+                // 将ResultSet的当前行映射为一个JavaBean:
+                return new User( // new User object:
+                        rs.getLong("id"), // id
+                        rs.getString("email"), // email
+                        rs.getString("password"), // password
+                        rs.getString("name")); // name
+            });
+}
+```
+在queryForObject()方法中，传入SQL以及SQL参数后，JdbcTemplate会自动创建PreparedStatement，自动执行查询并返回ResultSet，我们提供的RowMapper需要做的事情就是把ResultSet的当前行映射成一个JavaBean并返回。整个过程中，使用Connection、PreparedStatement和ResultSet都不需要我们手动管理。
+
+RowMapper不一定返回JavaBean，实际上它可以返回任何Java对象。例如，使用SELECT COUNT(*)查询时，可以返回Long：
+```java
+public long getUsers() {
+    return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM users", null, (ResultSet rs, int rowNum) -> {
+        // SELECT COUNT(*)查询只有一列，取第一列数据:
+        return rs.getLong(1);
+    });
+}
+```
+如果我们期望返回多行记录，而不是一行，可以用query()方法：
+```java
+public List<User> getUsers(int pageIndex) {
+    int limit = 100;
+    int offset = limit * (pageIndex - 1);
+    return jdbcTemplate.query("SELECT * FROM users LIMIT ? OFFSET ?", new Object[] { limit, offset },
+            new BeanPropertyRowMapper<>(User.class));
+}
+```
+上述query()方法传入的参数仍然是SQL、SQL参数以及RowMapper实例。这里我们直接使用Spring提供的BeanPropertyRowMapper。如果数据库表的结构恰好和JavaBean的属性名称一致，那么BeanPropertyRowMapper就可以直接把一行记录按列名转换为JavaBean。
+
+如果我们执行的不是查询，而是插入、更新和删除操作，那么需要使用update()方法：
+```java
+public void updateUser(User user) {
+    // 传入SQL，SQL参数，返回更新的行数:
+    if (1 != jdbcTemplate.update("UPDATE user SET name = ? WHERE id=?", user.getName(), user.getId())) {
+        throw new RuntimeException("User not found by id");
+    }
+}
+```
+只有一种INSERT操作比较特殊，那就是如果某一列是自增列（例如自增主键），通常，我们需要获取插入后的自增值。JdbcTemplate提供了一个KeyHolder来简化这一操作：
+```java
+public User register(String email, String password, String name) {
+    // 创建一个KeyHolder:
+    KeyHolder holder = new GeneratedKeyHolder();
+    if (1 != jdbcTemplate.update(
+        // 参数1:PreparedStatementCreator
+        (conn) -> {
+            // 创建PreparedStatement时，必须指定RETURN_GENERATED_KEYS:
+            var ps = conn.prepareStatement("INSERT INTO users(email,password,name) VALUES(?,?,?)",
+                    Statement.RETURN_GENERATED_KEYS);
+            ps.setObject(1, email);
+            ps.setObject(2, password);
+            ps.setObject(3, name);
+            return ps;
+        },
+        // 参数2:KeyHolder
+        holder)
+    ) {
+        throw new RuntimeException("Insert failed.");
+    }
+    // 从KeyHolder中获取返回的自增值:
+    return new User(holder.getKey().longValue(), email, password, name);
+}
+```
+JdbcTemplate还有许多重载方法，这里我们不一一介绍。需要强调的是，JdbcTemplate只是对JDBC操作的一个简单封装，它的目的是尽量减少手动编写try(resource) {...}的代码，对于查询，主要通过RowMapper实现了JDBC结果集到Java对象的转换。
+
+我们总结一下JdbcTemplate的用法，那就是：
+
+- 针对简单查询，优选query()和queryForObject()，因为只需提供SQL语句、参数和RowMapper；
+- 针对更新操作，优选update()，因为只需提供SQL语句和参数；
+- 任何复杂的操作，最终也可以通过execute(ConnectionCallback)实现，因为拿到Connection就可以做任何JDBC操作。
+
+实际上我们使用最多的仍然是各种查询。如果在设计表结构的时候，能够和JavaBean的属性一一对应，那么直接使用BeanPropertyRowMapper就很方便。如果表结构和JavaBean不一致怎么办？那就需要稍微改写一下查询，使结果集的结构和JavaBean保持一致。
+
+例如，表的列名是office_address，而JavaBean属性是workAddress，就需要指定别名，改写查询如下：
+```sql
+SELECT id, email, office_address AS workAddress, name FROM users WHERE email = ?
+```
+
+----
+
+还有东西 。。。。。。。。。。。。。。。。
+
+----
+
+
+## 开发Web应用
+在Web开发一章中，我们已经详细介绍了JavaEE中Web开发的基础：Servlet。具体地说，有以下几点：
+
+- Servlet规范定义了几种标准组件：Servlet、JSP、Filter和Listener；
+- Servlet的标准组件总是运行在Servlet容器中，如Tomcat、Jetty、WebLogic等。
+
+直接使用Servlet进行Web开发好比直接在JDBC上操作数据库，比较繁琐，更好的方法是在Servlet基础上封装MVC框架，基于MVC开发Web应用，大部分时候，不需要接触Servlet API，开发省时省力。
+
+我们在MVC开发和MVC高级开发已经由浅入深地介绍了如何编写MVC框架。当然，自己写的MVC主要是理解原理，要实现一个功能全面的MVC需要大量的工作以及广泛的测试。
+
+因此，开发Web应用，首先要选择一个优秀的MVC框架。常用的MVC框架有：
+
+- Struts：最古老的一个MVC框架，目前版本是2，和1.x有很大的区别；
+- WebWork：一个比Struts设计更优秀的MVC框架，但不知道出于什么原因，从2.0开始把自己的代码全部塞给Struts 2了；
+- Turbine：一个重度使用Velocity，强调布局的MVC框架；
+
+Spring虽然都可以集成任何Web框架，但是，Spring本身也开发了一个MVC框架，就叫Spring MVC。这个MVC框架设计得足够优秀以至于我们已经不想再费劲去集成类似Struts这样的框架了。
+
+### 使用Spring MVC
+我们在前面介绍Web开发时已经讲过了Java Web的基础：Servlet容器，以及标准的Servlet组件：
+
+- Servlet：能处理HTTP请求并将HTTP响应返回；
+- JSP：一种嵌套Java代码的HTML，将被编译为Servlet；
+- Filter：能过滤指定的URL以实现拦截功能；
+- Listener：监听指定的事件，如ServletContext、HttpSession的创建和销毁。
+
+此外，Servlet容器为每个Web应用程序自动创建一个唯一的ServletContext实例，这个实例就代表了Web应用程序本身。
+
+如果直接使用Spring MVC，我们写出来的代码类似：
+```java
+@Controller
+public class UserController {
+    @GetMapping("/register")
+    public ModelAndView register() {
+        ...
+    }
+
+    @PostMapping("/signin")
+    public ModelAndView signin(@RequestParam("email") String email, @RequestParam("password") String password) {
+        ...
+    }
+    ...
+}
+```
+但是，Spring提供的是一个IoC容器，所有的Bean，包括Controller，都在Spring IoC容器中被初始化，而Servlet容器由JavaEE服务器提供（如Tomcat），Servlet容器对Spring一无所知，他们之间到底依靠什么进行联系，又是以何种顺序初始化的？
+
+在理解上述问题之前，我们先把基于Spring MVC开发的项目结构搭建起来。首先创建基于Web的Maven工程，引入如下依赖：
+
+org.springframework:spring-context:5.2.0.RELEASE
+org.springframework:spring-webmvc:5.2.0.RELEASE
+org.springframework:spring-jdbc:5.2.0.RELEASE
+javax.annotation:javax.annotation-api:1.3.2
+io.pebbletemplates:pebble-spring5:3.1.2
+ch.qos.logback:logback-core:1.2.3
+ch.qos.logback:logback-classic:1.2.3
+com.zaxxer:HikariCP:3.4.2
+org.hsqldb:hsqldb:2.5.0
+以及provided依赖：
+
+org.apache.tomcat.embed:tomcat-embed-core:9.0.26
+org.apache.tomcat.embed:tomcat-embed-jasper:9.0.26
+这个标准的Maven Web工程目录结构如下：
+
+spring-web-mvc
+├── pom.xml
+└── src
+    └── main
+        ├── java
+        │   └── com
+        │       └── itranswarp
+        │           └── learnjava
+        │               ├── AppConfig.java
+        │               ├── DatabaseInitializer.java
+        │               ├── entity
+        │               │   └── User.java
+        │               ├── service
+        │               │   └── UserService.java
+        │               └── web
+        │                   └── UserController.java
+        ├── resources
+        │   ├── jdbc.properties
+        │   └── logback.xml
+        └── webapp
+            ├── WEB-INF
+            │   ├── templates
+            │   │   ├── _base.html
+            │   │   ├── index.html
+            │   │   ├── profile.html
+            │   │   ├── register.html
+            │   │   └── signin.html
+            │   └── web.xml
+            └── static
+                ├── css
+                │   └── bootstrap.css
+                └── js
+                    └── jquery.js
+其中，src/main/webapp是标准web目录，WEB-INF存放web.xml，编译的class，第三方jar，以及不允许浏览器直接访问的View模版，static目录存放所有静态文件。
+
+在src/main/resources目录中存放的是Java程序读取的classpath资源文件，除了JDBC的配置文件jdbc.properties外，我们又新增了一个logback.xml，这是Logback的默认查找的配置文件：
+
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="STDOUT"
+        class="ch.qos.logback.core.ConsoleAppender">
+        <layout class="ch.qos.logback.classic.PatternLayout">
+            <Pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n</Pattern>
+        </layout>
+    </appender>
+
+    <logger name="com.itranswarp.learnjava" level="info" additivity="false">
+        <appender-ref ref="STDOUT" />
+    </logger>
+
+    <root level="info">
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>
+上面给出了一个写入到标准输出的Logback配置，可以基于上述配置添加写入到文件的配置。
+
+在src/main/java中就是我们编写的Java代码了。
+
+配置Spring MVC
+和普通Spring配置一样，我们编写正常的AppConfig后，只需加上@EnableWebMvc注解，就“激活”了Spring MVC：
+
+@Configuration
+@ComponentScan
+@EnableWebMvc // 启用Spring MVC
+@EnableTransactionManagement
+@PropertySource("classpath:/jdbc.properties")
+public class AppConfig {
+    ...
+}
+除了创建DataSource、JdbcTemplate、PlatformTransactionManager外，AppConfig需要额外创建几个用于Spring MVC的Bean：
+
+@Bean
+WebMvcConfigurer createWebMvcConfigurer() {
+    return new WebMvcConfigurer() {
+        @Override
+        public void addResourceHandlers(ResourceHandlerRegistry registry) {
+            registry.addResourceHandler("/static/**").addResourceLocations("/static/");
+        }
+    };
+}
+WebMvcConfigurer并不是必须的，但我们在这里创建一个默认的WebMvcConfigurer，只覆写addResourceHandlers()，目的是让Spring MVC自动处理静态文件，并且映射路径为/static/**。
+
+另一个必须要创建的Bean是ViewResolver，因为Spring MVC允许集成任何模板引擎，使用哪个模板引擎，就实例化一个对应的ViewResolver：
+
+@Bean
+ViewResolver createViewResolver(@Autowired ServletContext servletContext) {
+    PebbleEngine engine = new PebbleEngine.Builder().autoEscaping(true)
+            .cacheActive(false)
+            .loader(new ServletLoader(servletContext))
+            .extension(new SpringExtension())
+            .build();
+    PebbleViewResolver viewResolver = new PebbleViewResolver();
+    viewResolver.setPrefix("/WEB-INF/templates/");
+    viewResolver.setSuffix("");
+    viewResolver.setPebbleEngine(engine);
+    return viewResolver;
+}
+ViewResolver通过指定prefix和suffix来确定如何查找View。上述配置使用Pebble引擎，指定模板文件存放在/WEB-INF/templates/目录下。
+
+剩下的Bean都是普通的@Component，但Controller必须标记为@Controller，例如：
+
+// Controller使用@Controller标记而不是@Component:
+@Controller
+public class UserController {
+    // 正常使用@Autowired注入:
+    @Autowired
+    UserService userService;
+
+    // 处理一个URL映射:
+    @GetMapping("/")
+    public ModelAndView index() {
+        ...
+    }
+    ...
+}
+如果是普通的Java应用程序，我们通过main()方法可以很简单地创建一个Spring容器的实例：
+
+public static void main(String[] args) {
+    ApplicationContext context = new AnnotationConfigApplicationContext(AppConfig.class);
+}
+但是问题来了，现在是Web应用程序，而Web应用程序总是由Servlet容器创建，那么，Spring容器应该由谁创建？在什么时候创建？Spring容器中的Controller又是如何通过Servlet调用的？
+
+在Web应用中启动Spring容器有很多种方法，可以通过Listener启动，也可以通过Servlet启动，可以使用XML配置，也可以使用注解配置。这里，我们只介绍一种最简单的启动Spring容器的方式。
+
+第一步，我们在web.xml中配置Spring MVC提供的DispatcherServlet：
+
+<!DOCTYPE web-app PUBLIC
+ "-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN"
+ "http://java.sun.com/dtd/web-app_2_3.dtd" >
+
+<web-app>
+    <servlet>
+        <servlet-name>dispatcher</servlet-name>
+        <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+        <init-param>
+            <param-name>contextClass</param-name>
+            <param-value>org.springframework.web.context.support.AnnotationConfigWebApplicationContext</param-value>
+        </init-param>
+        <init-param>
+            <param-name>contextConfigLocation</param-name>
+            <param-value>com.itranswarp.learnjava.AppConfig</param-value>
+        </init-param>
+        <load-on-startup>0</load-on-startup>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>dispatcher</servlet-name>
+        <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+</web-app>
+初始化参数contextClass指定使用注解配置的AnnotationConfigWebApplicationContext，配置文件的位置参数contextConfigLocation指向AppConfig的完整类名，最后，把这个Servlet映射到/*，即处理所有URL。
+
+上述配置可以看作一个样板配置，有了这个配置，Servlet容器会首先初始化Spring MVC的DispatcherServlet，在DispatcherServlet启动时，它根据配置AppConfig创建了一个类型是WebApplicationContext的IoC容器，完成所有Bean的初始化，并将容器绑到ServletContext上。
+
+因为DispatcherServlet持有IoC容器，能从IoC容器中获取所有@Controller的Bean，因此，DispatcherServlet接收到所有HTTP请求后，根据Controller方法配置的路径，就可以正确地把请求转发到指定方法，并根据返回的ModelAndView决定如何渲染页面。
+
+最后，我们在AppConfig中通过main()方法启动嵌入式Tomcat：
+
+public static void main(String[] args) throws Exception {
+    Tomcat tomcat = new Tomcat();
+    tomcat.setPort(Integer.getInteger("port", 8080));
+    tomcat.getConnector();
+    Context ctx = tomcat.addWebapp("", new File("src/main/webapp").getAbsolutePath());
+    WebResourceRoot resources = new StandardRoot(ctx);
+    resources.addPreResources(
+            new DirResourceSet(resources, "/WEB-INF/classes", new File("target/classes").getAbsolutePath(), "/"));
+    ctx.setResources(resources);
+    tomcat.start();
+    tomcat.getServer().await();
+}
+上述Web应用程序就是我们使用Spring MVC时的一个最小启动功能集。由于使用了JDBC和数据库，用户的注册、登录信息会被持久化：
+
+spring-mvc
+
+编写Controller
+有了Web应用程序的最基本的结构，我们的重点就可以放在如何编写Controller上。Spring MVC对Controller没有固定的要求，也不需要实现特定的接口。以UserController为例，编写Controller只需要遵循以下要点：
+
+总是标记@Controller而不是@Component：
+
+@Controller
+public class UserController {
+    ...
+}
+一个方法对应一个HTTP请求路径，用@GetMapping或@PostMapping表示GET或POST请求：
+
+@PostMapping("/signin")
+public ModelAndView doSignin(
+        @RequestParam("email") String email,
+        @RequestParam("password") String password,
+        HttpSession session) {
+    ...
+}
+需要接收的HTTP参数以@RequestParam()标注，可以设置默认值。如果方法参数需要传入HttpServletRequest、HttpServletResponse或者HttpSession，直接添加这个类型的参数即可，Spring MVC会自动按类型传入。
+
+返回的ModelAndView通常包含View的路径和一个Map作为Model，但也可以没有Model，例如：
+
+return new ModelAndView("signin.html"); // 仅View，没有Model
+返回重定向时既可以写new ModelAndView("redirect:/signin")，也可以直接返回String：
+
+public String index() {
+    if (...) {
+        return "redirect:/signin";
+    } else {
+        return "redirect:/profile";
+    }
+}
+如果在方法内部直接操作HttpServletResponse发送响应，返回null表示无需进一步处理：
+
+public ModelAndView download(HttpServletResponse response) {
+    byte[] data = ...
+    response.setContentType("application/octet-stream");
+    OutputStream output = response.getOutputStream();
+    output.write(data);
+    output.flush();
+    return null;
+}
+对URL进行分组，每组对应一个Controller是一种很好的组织形式，并可以在Controller的class定义出添加URL前缀，例如：
+
+@Controller
+@RequestMapping("/user")
+public class UserController {
+    // 注意实际URL映射是/user/profile
+    @GetMapping("/profile")
+    public ModelAndView profile() {
+        ...
+    }
+
+    // 注意实际URL映射是/user/changePassword
+    @GetMapping("/changePassword")
+    public ModelAndView changePassword() {
+        ...
+    }
+}
+实际方法的URL映射总是前缀+路径，这种形式还可以有效避免不小心导致的重复的URL映射。
+
+可见，Spring MVC允许我们编写既简单又灵活的Controller实现。
 
