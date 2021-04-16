@@ -1785,11 +1785,1021 @@ JdbcTemplate还有许多重载方法，这里我们不一一介绍。需要强�
 SELECT id, email, office_address AS workAddress, name FROM users WHERE email = ?
 ```
 
-----
+###  使用声明式事务
+使用Spring操作JDBC虽然方便，但是我们在前面讨论JDBC的时候，讲到过JDBC事务，如果要在Spring中操作事务，没必要手写JDBC事务，可以使用Spring提供的高级接口来操作事务。
 
-还有东西 。。。。。。。。。。。。。。。。
+Spring提供了一个PlatformTransactionManager来表示事务管理器，所有的事务都由它负责管理。而事务由TransactionStatus表示。如果手写事务代码，使用try...catch如下：
+```java
+TransactionStatus tx = null;
+try {
+    // 开启事务:
+    tx = txManager.getTransaction(new DefaultTransactionDefinition());
+    // 相关JDBC操作:
+    jdbcTemplate.update("...");
+    jdbcTemplate.update("...");
+    // 提交事务:
+    txManager.commit(tx);
+} catch (RuntimeException e) {
+    // 回滚事务:
+    txManager.rollback(tx);
+    throw e;
+}
+```
+Spring为啥要抽象出PlatformTransactionManager和TransactionStatus？原因是JavaEE除了提供JDBC事务外，它还支持分布式事务JTA（Java Transaction API）。分布式事务是指多个数据源（比如多个数据库，多个消息系统）要在分布式环境下实现事务的时候，应该怎么实现。分布式事务实现起来非常复杂，简单地说就是通过一个分布式事务管理器实现两阶段提交，但本身数据库事务就不快，基于数据库事务实现的分布式事务就慢得难以忍受，所以使用率不高。
 
-----
+Spring为了同时支持JDBC和JTA两种事务模型，就抽象出PlatformTransactionManager。因为我们的代码只需要JDBC事务，因此，在AppConfig中，需要再定义一个PlatformTransactionManager对应的Bean，它的实际类型是DataSourceTransactionManager：
+```java
+@Configuration
+@ComponentScan
+@PropertySource("jdbc.properties")
+public class AppConfig {
+    ...
+    @Bean
+    PlatformTransactionManager createTxManager(@Autowired DataSource dataSource) {
+        return new DataSourceTransactionManager(dataSource);
+    }
+}
+```
+使用编程的方式使用Spring事务仍然比较繁琐，更好的方式是通过声明式事务来实现。使用声明式事务非常简单，除了在AppConfig中追加一个上述定义的PlatformTransactionManager外，再加一个@EnableTransactionManagement就可以启用声明式事务：
+```java
+@Configuration
+@ComponentScan
+@EnableTransactionManagement // 启用声明式
+@PropertySource("jdbc.properties")
+public class AppConfig {
+    ...
+}
+```
+然后，对需要事务支持的方法，加一个@Transactional注解：
+```java
+@Component
+public class UserService {
+    // 此public方法自动具有事务支持:
+    @Transactional
+    public User register(String email, String password, String name) {
+       ...
+    }
+}
+```
+或者更简单一点，直接在Bean的class处加上，表示所有public方法都具有事务支持：
+```java
+@Component
+@Transactional
+public class UserService {
+    ...
+}
+```
+Spring对一个声明式事务的方法，如何开启事务支持？原理仍然是AOP代理，即通过自动创建Bean的Proxy实现：
+```java
+public class UserService$$EnhancerBySpringCGLIB extends UserService {
+    UserService target = ...
+    PlatformTransactionManager txManager = ...
+
+    public User register(String email, String password, String name) {
+        TransactionStatus tx = null;
+        try {
+            tx = txManager.getTransaction(new DefaultTransactionDefinition());
+            target.register(email, password, name);
+            txManager.commit(tx);
+        } catch (RuntimeException e) {
+            txManager.rollback(tx);
+            throw e;
+        }
+    }
+    ...
+}
+```
+注意：声明了@EnableTransactionManagement后，不必额外添加@EnableAspectJAutoProxy。
+
+#### 回滚事务
+默认情况下，如果发生了RuntimeException，Spring的声明式事务将自动回滚。在一个事务方法中，如果程序判断需要回滚事务，只需抛出RuntimeException，例如：
+```java
+@Transactional
+public buyProducts(long productId, int num) {
+    ...
+    if (store < num) {
+        // 库存不够，购买失败:
+        throw new IllegalArgumentException("No enough products");
+    }
+    ...
+}
+```
+如果要针对Checked Exception回滚事务，需要在@Transactional注解中写出来：
+```java
+@Transactional(rollbackFor = {RuntimeException.class, IOException.class})
+public buyProducts(long productId, int num) throws IOException {
+    ...
+}
+```
+上述代码表示在抛出RuntimeException或IOException时，事务将回滚。
+
+为了简化代码，我们强烈建议业务异常体系从RuntimeException派生，这样就不必声明任何特殊异常即可让Spring的声明式事务正常工作：
+```java
+public class BusinessException extends RuntimeException {
+    ...
+}
+
+public class LoginException extends BusinessException {
+    ...
+}
+
+public class PaymentException extends BusinessException {
+    ...
+}
+```
+
+#### 事务边界
+在使用事务的时候，明确事务边界非常重要。对于声明式事务，例如，下面的register()方法：
+```java
+@Component
+public class UserService {
+    @Transactional
+    public User register(String email, String password, String name) { // 事务开始
+       ...
+    } // 事务结束
+}
+```
+它的事务边界就是register()方法开始和结束。
+
+类似的，一个负责给用户增加积分的addBonus()方法：
+```java
+@Component
+public class BonusService {
+    @Transactional
+    public void addBonus(long userId, int bonus) { // 事务开始
+       ...
+    } // 事务结束
+}
+```
+它的事务边界就是addBonus()方法开始和结束。
+
+在现实世界中，问题总是要复杂一点点。用户注册后，能自动获得100积分，因此，实际代码如下：
+```java
+@Component
+public class UserService {
+    @Autowired
+    BonusService bonusService;
+
+    @Transactional
+    public User register(String email, String password, String name) {
+        // 插入用户记录:
+        User user = jdbcTemplate.insert("...");
+        // 增加100积分:
+        bonusService.addBonus(user.id, 100);
+    }
+}
+```
+现在问题来了：调用方（比如RegisterController）调用UserService.register()这个事务方法，它在内部又调用了BonusService.addBonus()这个事务方法，一共有几个事务？如果addBonus()抛出了异常需要回滚事务，register()方法的事务是否也要回滚？
+
+#### 事务传播
+要解决上面的问题，我们首先要定义事务的传播模型。
+
+假设用户注册的入口是RegisterController，它本身没有事务，仅仅是调用UserService.register()这个事务方法：
+```java
+@Controller
+public class RegisterController {
+    @Autowired
+    UserService userService;
+
+    @PostMapping("/register")
+    public ModelAndView doRegister(HttpServletRequest req) {
+        String email = req.getParameter("email");
+        String password = req.getParameter("password");
+        String name = req.getParameter("name");
+        User user = userService.register(email, password, name);
+        return ...
+    }
+}
+```
+因此，UserService.register()这个事务方法的起始和结束，就是事务的范围。
+
+我们需要关心的问题是，在UserService.register()这个事务方法内，调用BonusService.addBonus()，我们期待的事务行为是什么：
+```java
+@Transactional
+public User register(String email, String password, String name) {
+    // 事务已开启:
+    User user = jdbcTemplate.insert("...");
+    // ???:
+    bonusService.addBonus(user.id, 100);
+} // 事务结束
+```
+对于大多数业务来说，我们期待BonusService.addBonus()的调用，和UserService.register()应当融合在一起，它的行为应该如下：
+
+UserService.register()已经开启了一个事务，那么在内部调用BonusService.addBonus()时，BonusService.addBonus()方法就没必要再开启一个新事务，直接加入到BonusService.register()的事务里就好了。
+
+其实就相当于：
+
+1. UserService.register()先执行了一条INSERT语句：INSERT INTO users ...
+2. BonusService.addBonus()再执行一条INSERT语句：INSERT INTO bonus ...
+
+因此，Spring的声明式事务为事务传播定义了几个级别，默认传播级别就是REQUIRED，它的意思是，如果当前没有事务，就创建一个新事务，如果当前有事务，就加入到当前事务中执行。
+
+我们观察UserService.register()方法，它在RegisterController中执行，因为RegisterController没有事务，因此，UserService.register()方法会自动创建一个新事务。
+
+在UserService.register()方法内部，调用BonusService.addBonus()方法时，因为BonusService.addBonus()检测到当前已经有事务了，因此，它会加入到当前事务中执行。
+
+因此，整个业务流程的事务边界就清晰了：它只有一个事务，并且范围就是UserService.register()方法。
+
+有的童鞋会问：把BonusService.addBonus()方法的@Transactional去掉，变成一个普通方法，那不就规避了复杂的传播模型吗？
+
+去掉BonusService.addBonus()方法的@Transactional，会引来另一个问题，即其他地方如果调用BonusService.addBonus()方法，那就没法保证事务了。例如，规定用户登录时积分+5：
+```java
+@Controller
+public class LoginController {
+    @Autowired
+    BonusService bonusService;
+
+    @PostMapping("/login")
+    public ModelAndView doLogin(HttpServletRequest req) {
+        User user = ...
+        bonusService.addBonus(user.id, 5);
+    }
+}
+```
+可见，BonusService.addBonus()方法必须要有@Transactional，否则，登录后积分就无法添加了。
+
+默认的事务传播级别是REQUIRED，它满足绝大部分的需求。还有一些其他的传播级别：
+
+- SUPPORTS：表示如果有事务，就加入到当前事务，如果没有，那也不开启事务执行。这种传播级别可用于查询方法，因为SELECT语句既可以在事务内执行，也可以不需要事务；
+- MANDATORY：表示必须要存在当前事务并加入执行，否则将抛出异常。这种传播级别可用于核心更新逻辑，比如用户余额变更，它总是被其他事务方法调用，不能直接由非事务方法调用；
+- REQUIRES_NEW：表示不管当前有没有事务，都必须开启一个新的事务执行。如果当前已经有事务，那么当前事务会挂起，等新事务完成后，再恢复执行；
+- NOT_SUPPORTED：表示不支持事务，如果当前有事务，那么当前事务会挂起，等这个方法执行完成后，再恢复执行；
+- NEVER：和NOT_SUPPORTED相比，它不但不支持事务，而且在监测到当前有事务时，会抛出异常拒绝执行；
+- NESTED：表示如果当前有事务，则开启一个嵌套级别事务，如果当前没有事务，则开启一个新事务。
+
+上面这么多种事务的传播级别，其实默认的REQUIRED已经满足绝大部分需求，SUPPORTS和REQUIRES_NEW在少数情况下会用到，其他基本不会用到，因为把事务搞得越复杂，不仅逻辑跟着复杂，而且速度也会越慢。
+
+定义事务的传播级别也是写在@Transactional注解里的：
+```java
+@Transactional(propagation = Propagation.REQUIRES_NEW)
+public Product createProduct() {
+    ...
+}
+```
+现在只剩最后一个问题了：Spring是如何传播事务的？
+
+我们在JDBC中使用事务的时候，是这么个写法：
+```java
+Connection conn = openConnection();
+try {
+    // 关闭自动提交:
+    conn.setAutoCommit(false);
+    // 执行多条SQL语句:
+    insert(); update(); delete();
+    // 提交事务:
+    conn.commit();
+} catch (SQLException e) {
+    // 回滚事务:
+    conn.rollback();
+} finally {
+    conn.setAutoCommit(true);
+    conn.close();
+}
+```
+Spring使用声明式事务，最终也是通过执行JDBC事务来实现功能的，那么，一个事务方法，如何获知当前是否存在事务？
+
+答案是使用ThreadLocal。Spring总是把JDBC相关的Connection和TransactionStatus实例绑定到ThreadLocal。如果一个事务方法从ThreadLocal未取到事务，那么它会打开一个新的JDBC连接，同时开启一个新的事务，否则，它就直接使用从ThreadLocal获取的JDBC连接以及TransactionStatus。
+
+因此，事务能正确传播的前提是，方法调用是在一个线程内才行。如果像下面这样写：
+```java
+@Transactional
+public User register(String email, String password, String name) { // BEGIN TX-A
+    User user = jdbcTemplate.insert("...");
+    new Thread(() -> {
+        // BEGIN TX-B:
+        bonusService.addBonus(user.id, 100);
+        // END TX-B
+    }).start();
+} // END TX-A
+```
+在另一个线程中调用BonusService.addBonus()，它根本获取不到当前事务，因此，UserService.register()和BonusService.addBonus()两个方法，将分别开启两个完全独立的事务。
+
+换句话说，事务只能在当前线程传播，无法跨线程传播。
+
+那如果我们想实现跨线程传播事务呢？原理很简单，就是要想办法把当前线程绑定到ThreadLocal的Connection和TransactionStatus实例传递给新线程，但实现起来非常复杂，根据异常回滚更加复杂，不推荐自己去实现。
+
+
+### 使用DAO
+在传统的多层应用程序中，通常是Web层调用业务层，业务层调用数据访问层。业务层负责处理各种业务逻辑，而数据访问层只负责对数据进行增删改查。因此，实现数据访问层就是用JdbcTemplate实现对数据库的操作。
+
+编写数据访问层的时候，可以使用DAO模式。DAO即Data Access Object的缩写，它没有什么神秘之处，实现起来基本如下：
+```java
+public class UserDao {
+
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+
+    User getById(long id) {
+        ...
+    }
+
+    List<User> getUsers(int page) {
+        ...
+    }
+
+    User createUser(User user) {
+        ...
+    }
+
+    User updateUser(User user) {
+        ...
+    }
+
+    void deleteUser(User user) {
+        ...
+    }
+}
+```
+Spring提供了一个JdbcDaoSupport类，用于简化DAO的实现。这个JdbcDaoSupport没什么复杂的，核心代码就是持有一个JdbcTemplate：
+```java
+public abstract class JdbcDaoSupport extends DaoSupport {
+
+    private JdbcTemplate jdbcTemplate;
+
+    public final void setJdbcTemplate(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+        initTemplateConfig();
+    }
+
+    public final JdbcTemplate getJdbcTemplate() {
+        return this.jdbcTemplate;
+    }
+
+    ...
+}
+```
+它的意图是子类直接从JdbcDaoSupport继承后，可以随时调用getJdbcTemplate()获得JdbcTemplate的实例。那么问题来了：因为JdbcDaoSupport的jdbcTemplate字段没有标记@Autowired，所以，子类想要注入JdbcTemplate，还得自己想个办法：
+```java
+@Component
+@Transactional
+public class UserDao extends JdbcDaoSupport {
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+
+    @PostConstruct
+    public void init() {
+        super.setJdbcTemplate(jdbcTemplate);
+    }
+}
+```
+那既然UserDao都已经注入了JdbcTemplate，那再把它放到父类里，通过getJdbcTemplate()访问岂不是多此一举？
+
+如果使用传统的XML配置，并不需要编写@Autowired JdbcTemplate jdbcTemplate，但是考虑到现在基本上是使用注解的方式，我们可以编写一个AbstractDao，专门负责注入JdbcTemplate：
+```java
+public abstract class AbstractDao extends JdbcDaoSupport {
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @PostConstruct
+    public void init() {
+        super.setJdbcTemplate(jdbcTemplate);
+    }
+}
+```
+这样，子类的代码就非常干净，可以直接调用getJdbcTemplate()：
+```java
+@Component
+@Transactional
+public class UserDao extends AbstractDao {
+    public User getById(long id) {
+        return getJdbcTemplate().queryForObject(
+                "SELECT * FROM users WHERE id = ?",
+                new BeanPropertyRowMapper<>(User.class),
+                id
+        );
+    }
+    ...
+}
+```
+倘若肯再多写一点样板代码，就可以把AbstractDao改成泛型，并实现getById()，getAll()，deleteById()这样的通用方法：
+```java
+public abstract class AbstractDao<T> extends JdbcDaoSupport {
+    private String table;
+    private Class<T> entityClass;
+    private RowMapper<T> rowMapper;
+
+    public AbstractDao() {
+        // 获取当前类型的泛型类型:
+        this.entityClass = getParameterizedType();
+        this.table = this.entityClass.getSimpleName().toLowerCase() + "s";
+        this.rowMapper = new BeanPropertyRowMapper<>(entityClass);
+    }
+
+    public T getById(long id) {
+        return getJdbcTemplate().queryForObject("SELECT * FROM " + table + " WHERE id = ?", this.rowMapper, id);
+    }
+
+    public List<T> getAll(int pageIndex) {
+        int limit = 100;
+        int offset = limit * (pageIndex - 1);
+        return getJdbcTemplate().query("SELECT * FROM " + table + " LIMIT ? OFFSET ?",
+                new Object[] { limit, offset },
+                this.rowMapper);
+    }
+
+    public void deleteById(long id) {
+        getJdbcTemplate().update("DELETE FROM " + table + " WHERE id = ?", id);
+    }
+    ...
+}
+```
+这样，每个子类就自动获得了这些通用方法：
+```java
+@Component
+@Transactional
+public class UserDao extends AbstractDao<User> {
+    // 已经有了:
+    // User getById(long)
+    // List<User> getAll(int)
+    // void deleteById(long)
+}
+
+@Component
+@Transactional
+public class BookDao extends AbstractDao<Book> {
+    // 已经有了:
+    // Book getById(long)
+    // List<Book> getAll(int)
+    // void deleteById(long)
+}
+```
+可见，DAO模式就是一个简单的数据访问模式，是否使用DAO，根据实际情况决定，因为很多时候，直接在Service层操作数据库也是完全没有问题的。
+
+
+### 集成Hibernate
+使用JdbcTemplate的时候，我们用得最多的方法就是List<T> query(String sql, Object[] args, RowMapper rowMapper)。这个RowMapper的作用就是把ResultSet的一行记录映射为Java Bean。
+
+这种把关系数据库的表记录映射为Java对象的过程就是ORM：Object-Relational Mapping。ORM既可以把记录转换成Java对象，也可以把Java对象转换为行记录。
+
+使用JdbcTemplate配合RowMapper可以看作是最原始的ORM。如果要实现更自动化的ORM，可以选择成熟的ORM框架，例如Hibernate。
+
+我们来看看如何在Spring中集成Hibernate。
+
+Hibernate作为ORM框架，它可以替代JdbcTemplate，但Hibernate仍然需要JDBC驱动，所以，我们需要引入JDBC驱动、连接池，以及Hibernate本身。在Maven中，我们加入以下依赖项：
+```xml
+<!-- JDBC驱动，这里使用HSQLDB -->
+<dependency>
+    <groupId>org.hsqldb</groupId>
+    <artifactId>hsqldb</artifactId>
+    <version>2.5.0</version>
+</dependency>
+
+<!-- JDBC连接池 -->
+<dependency>
+    <groupId>com.zaxxer</groupId>
+    <artifactId>HikariCP</artifactId>
+    <version>3.4.2</version>
+</dependency>
+
+<!-- Hibernate -->
+<dependency>
+    <groupId>org.hibernate</groupId>
+    <artifactId>hibernate-core</artifactId>
+    <version>5.4.2.Final</version>
+</dependency>
+
+<!-- Spring Context和Spring ORM -->
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-context</artifactId>
+    <version>5.2.0.RELEASE</version>
+</dependency>
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-orm</artifactId>
+    <version>5.2.0.RELEASE</version>
+</dependency>
+```
+在AppConfig中，我们仍然需要创建DataSource、引入JDBC配置文件，以及启用声明式事务：
+```java
+@Configuration
+@ComponentScan
+@EnableTransactionManagement
+@PropertySource("jdbc.properties")
+public class AppConfig {
+    @Bean
+    DataSource createDataSource() {
+        ...
+    }
+}
+```
+为了启用Hibernate，我们需要创建一个LocalSessionFactoryBean：
+```java
+public class AppConfig {
+    @Bean
+    LocalSessionFactoryBean createSessionFactory(@Autowired DataSource dataSource) {
+        var props = new Properties();
+        props.setProperty("hibernate.hbm2ddl.auto", "update"); // 生产环境不要使用
+        props.setProperty("hibernate.dialect", "org.hibernate.dialect.HSQLDialect");
+        props.setProperty("hibernate.show_sql", "true");
+        var sessionFactoryBean = new LocalSessionFactoryBean();
+        sessionFactoryBean.setDataSource(dataSource);
+        // 扫描指定的package获取所有entity class:
+        sessionFactoryBean.setPackagesToScan("com.itranswarp.learnjava.entity");
+        sessionFactoryBean.setHibernateProperties(props);
+        return sessionFactoryBean;
+    }
+}
+```
+注意我们在定制Bean中讲到过FactoryBean，LocalSessionFactoryBean是一个FactoryBean，它会再自动创建一个SessionFactory，在Hibernate中，Session是封装了一个JDBC Connection的实例，而SessionFactory是封装了JDBC DataSource的实例，即SessionFactory持有连接池，每次需要操作数据库的时候，SessionFactory创建一个新的Session，相当于从连接池获取到一个新的Connection。SessionFactory就是Hibernate提供的最核心的一个对象，但LocalSessionFactoryBean是Spring提供的为了让我们方便创建SessionFactory的类。
+
+注意到上面创建LocalSessionFactoryBean的代码，首先用Properties持有Hibernate初始化SessionFactory时用到的所有设置，常用的设置请参考Hibernate文档，这里我们只定义了3个设置：
+
+- hibernate.hbm2ddl.auto=update：表示自动创建数据库的表结构，注意不要在生产环境中启用；
+- hibernate.dialect=org.hibernate.dialect.HSQLDialect：指示Hibernate使用的数据库是HSQLDB。Hibernate使用一种HQL的查询语句，它和SQL类似，但真正在“翻译”成SQL时，会根据设定的数据库“方言”来生成针对数据库优化的SQL；
+- hibernate.show_sql=true：让Hibernate打印执行的SQL，这对于调试非常有用，我们可以方便地看到Hibernate生成的SQL语句是否符合我们的预期。
+
+除了设置DataSource和Properties之外，注意到setPackagesToScan()我们传入了一个package名称，它指示Hibernate扫描这个包下面的所有Java类，自动找出能映射为数据库表记录的JavaBean。后面我们会仔细讨论如何编写符合Hibernate要求的JavaBean。
+
+紧接着，我们还需要创建HibernateTemplate以及HibernateTransactionManager：
+```java
+public class AppConfig {
+    @Bean
+    HibernateTemplate createHibernateTemplate(@Autowired SessionFactory sessionFactory) {
+        return new HibernateTemplate(sessionFactory);
+    }
+
+    @Bean
+    PlatformTransactionManager createTxManager(@Autowired SessionFactory sessionFactory) {
+        return new HibernateTransactionManager(sessionFactory);
+    }
+}
+```
+这两个Bean的创建都十分简单。HibernateTransactionManager是配合Hibernate使用声明式事务所必须的，而HibernateTemplate则是Spring为了便于我们使用Hibernate提供的工具类，不是非用不可，但推荐使用以简化代码。
+
+到此为止，所有的配置都定义完毕，我们来看看如何将数据库表结构映射为Java对象。
+
+考察如下的数据库表：
+```sql
+CREATE TABLE user
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    email VARCHAR(100) NOT NULL,
+    password VARCHAR(100) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    createdAt BIGINT NOT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `email` (`email`)
+);
+```
+其中，id是自增主键，email、password、name是VARCHAR类型，email带唯一索引以确保唯一性，createdAt存储整型类型的时间戳。用JavaBean表示如下：
+```java
+public class User {
+    private Long id;
+    private String email;
+    private String password;
+    private String name;
+    private Long createdAt;
+
+    // getters and setters
+    ...
+}
+```
+这种映射关系十分易懂，但我们需要添加一些注解来告诉Hibernate如何把User类映射到表记录：
+```java
+@Entity
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false, updatable = false)
+    public Long getId() { ... }
+
+    @Column(nullable = false, unique = true, length = 100)
+    public String getEmail() { ... }
+
+    @Column(nullable = false, length = 100)
+    public String getPassword() { ... }
+
+    @Column(nullable = false, length = 100)
+    public String getName() { ... }
+
+    @Column(nullable = false, updatable = false)
+    public Long getCreatedAt() { ... }
+}
+```
+如果一个JavaBean被用于映射，我们就标记一个@Entity。默认情况下，映射的表名是user，如果实际的表名不同，例如实际表名是users，可以追加一个@Table(name="users")表示：
+```java
+@Entity
+@Table(name="users)
+public class User {
+    ...
+}
+```
+每个属性到数据库列的映射用@Column()标识，nullable指示列是否允许为NULL，updatable指示该列是否允许被用在UPDATE语句，length指示String类型的列的长度（如果没有指定，默认是255）。
+
+对于主键，还需要用@Id标识，自增主键再追加一个@GeneratedValue，以便Hibernate能读取到自增主键的值。
+
+主键id定义的类型不是long，而是Long。这是因为Hibernate如果检测到主键为null，就不会在INSERT语句中指定主键的值，而是返回由数据库生成的自增值，否则，Hibernate认为我们的程序指定了主键的值，会在INSERT语句中直接列出。long型字段总是具有默认值0，因此，每次插入的主键值总是0，导致除第一次外后续插入都将失败。
+
+createdAt虽然是整型，但我们并没有使用long，而是Long，这是因为使用基本类型会导致某种查询会添加意外的条件，后面我们会详细讨论，这里只需牢记，作为映射使用的JavaBean，所有属性都使用包装类型而不是基本类型。
+
+使用Hibernate时，不要使用基本类型的属性，总是使用包装类型，如Long或Integer。
+
+类似的，我们再定义一个Book类：
+```java
+@Entity
+public class Book {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false, updatable = false)
+    public Long getId() { ... }
+
+    @Column(nullable = false, length = 100)
+    public String getTitle() { ... }
+
+    @Column(nullable = false, updatable = false)
+    public Long getCreatedAt() { ... }
+}
+```
+如果仔细观察User和Book，会发现它们定义的id、createdAt属性是一样的，这在数据库表结构的设计中很常见：对于每个表，通常我们会统一使用一种主键生成机制，并添加createdAt表示创建时间，updatedAt表示修改时间等通用字段。
+
+不必在User和Book中重复定义这些通用字段，我们可以把它们提到一个抽象类中：
+```java
+@MappedSuperclass
+public abstract class AbstractEntity {
+
+    private Long id;
+    private Long createdAt;
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false, updatable = false)
+    public Long getId() { ... }
+
+    @Column(nullable = false, updatable = false)
+    public Long getCreatedAt() { ... }
+
+    @Transient
+    public ZonedDateTime getCreatedDateTime() {
+        return Instant.ofEpochMilli(this.createdAt).atZone(ZoneId.systemDefault());
+    }
+
+    @PrePersist
+    public void preInsert() {
+        setCreatedAt(System.currentTimeMillis());
+    }
+}
+```
+对于AbstractEntity来说，我们要标注一个@MappedSuperclass表示它用于继承。此外，注意到我们定义了一个@Transient方法，它返回一个“虚拟”的属性。因为getCreatedDateTime()是计算得出的属性，而不是从数据库表读出的值，因此必须要标注@Transient，否则Hibernate会尝试从数据库读取名为createdDateTime这个不存在的字段从而出错。
+
+再注意到@PrePersist标识的方法，它表示在我们将一个JavaBean持久化到数据库之前（即执行INSERT语句），Hibernate会先执行该方法，这样我们就可以自动设置好createdAt属性。
+
+有了AbstractEntity，我们就可以大幅简化User和Book：
+```java
+@Entity
+public class User extends AbstractEntity {
+
+    @Column(nullable = false, unique = true, length = 100)
+    public String getEmail() { ... }
+
+    @Column(nullable = false, length = 100)
+    public String getPassword() { ... }
+
+    @Column(nullable = false, length = 100)
+    public String getName() { ... }
+}
+```
+注意到使用的所有注解均来自javax.persistence，它是JPA规范的一部分。这里我们只介绍使用注解的方式配置Hibernate映射关系，不再介绍传统的比较繁琐的XML配置。通过Spring集成Hibernate时，也不再需要hibernate.cfg.xml配置文件，用一句话总结：
+
+使用Spring集成Hibernate，配合JPA注解，无需任何额外的XML配置。
+
+类似User、Book这样的用于ORM的Java Bean，我们通常称之为Entity Bean。
+
+最后，我们来看看如果对user表进行增删改查。因为使用了Hibernate，因此，我们要做的，实际上是对User这个JavaBean进行“增删改查”。我们编写一个UserService，注入HibernateTemplate以便简化代码：
+```java
+@Component
+@Transactional
+public class UserService {
+    @Autowired
+    HibernateTemplate hibernateTemplate;
+}
+```
+
+#### Insert操作
+要持久化一个User实例，我们只需调用save()方法。以register()方法为例，代码如下：
+```java
+public User register(String email, String password, String name) {
+    // 创建一个User对象:
+    User user = new User();
+    // 设置好各个属性:
+    user.setEmail(email);
+    user.setPassword(password);
+    user.setName(name);
+    // 不要设置id，因为使用了自增主键
+    // 保存到数据库:
+    hibernateTemplate.save(user);
+    // 现在已经自动获得了id:
+    System.out.println(user.getId());
+    return user;
+}
+```
+
+#### Delete操作
+删除一个User相当于从表中删除对应的记录。注意Hibernate总是用id来删除记录，因此，要正确设置User的id属性才能正常删除记录：
+```java
+public boolean deleteUser(Long id) {
+    User user = hibernateTemplate.get(User.class, id);
+    if (user != null) {
+        hibernateTemplate.delete(user);
+        return true;
+    }
+    return false;
+}
+```
+通过主键删除记录时，一个常见的用法是先根据主键加载该记录，再删除。load()和get()都可以根据主键加载记录，它们的区别在于，当记录不存在时，get()返回null，而load()抛出异常。
+
+#### Update操作
+更新记录相当于先更新User的指定属性，然后调用update()方法：
+```java
+public void updateUser(Long id, String name) {
+    User user = hibernateTemplate.load(User.class, id);
+    user.setName(name);
+    hibernateTemplate.update(user);
+}
+```
+前面我们在定义User时，对有的属性标注了@Column(updatable=false)。Hibernate在更新记录时，它只会把@Column(updatable=true)的属性加入到UPDATE语句中，这样可以提供一层额外的安全性，即如果不小心修改了User的email、createdAt等属性，执行update()时并不会更新对应的数据库列。但也必须牢记：这个功能是Hibernate提供的，如果绕过Hibernate直接通过JDBC执行UPDATE语句仍然可以更新数据库的任意列的值。
+
+最后，我们编写的大部分方法都是各种各样的查询。根据id查询我们可以直接调用load()或get()，如果要使用条件查询，有3种方法。
+
+假设我们想执行以下查询：
+```sql
+SELECT * FROM user WHERE email = ? AND password = ?
+```
+我们来看看可以使用什么查询。
+
+#### 使用Example查询
+第一种方法是使用findByExample()，给出一个User实例，Hibernate把该实例所有非null的属性拼成WHERE条件：
+```java
+public User login(String email, String password) {
+    User example = new User();
+    example.setEmail(email);
+    example.setPassword(password);
+    List<User> list = hibernateTemplate.findByExample(example);
+    return list.isEmpty() ? null : list.get(0);
+}
+```
+因为example实例只有email和password两个属性为非null，所以最终生成的WHERE语句就是WHERE email = ? AND password = ?。
+
+如果我们把User的createdAt的类型从Long改为long，findByExample()的查询将出问题，原因在于example实例的long类型字段有了默认值0，导致Hibernate最终生成的WHERE语句意外变成了WHERE email = ? AND password = ? AND createdAt = 0。显然，额外的查询条件将导致错误的查询结果。
+
+使用findByExample()时，注意基本类型字段总是会加入到WHERE条件！
+
+#### 使用Criteria查询
+第二种查询方法是使用Criteria查询，可以实现如下：
+```java
+public User login(String email, String password) {
+    DetachedCriteria criteria = DetachedCriteria.forClass(User.class);
+    criteria.add(Restrictions.eq("email", email))
+            .add(Restrictions.eq("password", password));
+    List<User> list = (List<User>) hibernateTemplate.findByCriteria(criteria);
+    return list.isEmpty() ? null : list.get(0);
+}
+```
+DetachedCriteria使用链式语句来添加多个AND条件。和findByExample()相比，findByCriteria()可以组装出更灵活的WHERE条件，例如：
+```sql
+SELECT * FROM user WHERE (email = ? OR name = ?) AND password = ?
+```
+上述查询没法用findByExample()实现，但用Criteria查询可以实现如下：
+```java
+DetachedCriteria criteria = DetachedCriteria.forClass(User.class);
+criteria.add(
+    Restrictions.and(
+        Restrictions.or(
+            Restrictions.eq("email", email),
+            Restrictions.eq("name", email)
+        ),
+        Restrictions.eq("password", password)
+    )
+);
+```
+只要组织好Restrictions的嵌套关系，Criteria查询可以实现任意复杂的查询。
+
+#### 使用HQL查询
+最后一种常用的查询是直接编写Hibernate内置的HQL查询：
+```java
+List<User> list = (List<User>) hibernateTemplate.find("FROM User WHERE email=? AND password=?", email, password);
+```
+和SQL相比，HQL使用类名和属性名，由Hibernate自动转换为实际的表名和列名。详细的HQL语法可以参考Hibernate文档。
+
+除了可以直接传入HQL字符串外，Hibernate还可以使用一种NamedQuery，它给查询起个名字，然后保存在注解中。使用NamedQuery时，我们要先在User类标注：
+```java
+@NamedQueries(
+    @NamedQuery(
+        // 查询名称:
+        name = "login",
+        // 查询语句:
+        query = "SELECT u FROM User u WHERE u.email=?0 AND u.password=?1"
+    )
+)
+@Entity
+public class User extends AbstractEntity {
+    ...
+}
+```
+注意到引入的NamedQuery是javax.persistence.NamedQuery，它和直接传入HQL有点不同的是，占位符使用?0、?1，并且索引是从0开始的（真乱）。
+
+使用NamedQuery只需要引入查询名和参数：
+```java
+public User login(String email, String password) {
+    List<User> list = (List<User>) hibernateTemplate.findByNamedQuery("login", email, password);
+    return list.isEmpty() ? null : list.get(0);
+}
+```
+直接写HQL和使用NamedQuery各有优劣。前者可以在代码中直观地看到查询语句，后者可以在User类统一管理所有相关查询。
+
+#### 使用Hibernate原生接口
+如果要使用Hibernate原生接口，但不知道怎么写，可以参考HibernateTemplate的源码。使用Hibernate的原生接口实际上总是从SessionFactory出发，它通常用全局变量存储，在HibernateTemplate中以成员变量被注入。有了SessionFactory，使用Hibernate用法如下：
+```java
+void operation() {
+    Session session = null;
+    boolean isNew = false;
+    // 获取当前Session或者打开新的Session:
+    try {
+        session = this.sessionFactory.getCurrentSession();
+    } catch (HibernateException e) {
+        session = this.sessionFactory.openSession();
+        isNew = true;
+    }
+    // 操作Session:
+    try {
+        User user = session.load(User.class, 123L);
+    }
+    finally {
+        // 关闭新打开的Session:
+        if (isNew) {
+            session.close();
+        }
+    }
+}
+```
+
+### 集成JPA
+JavaEE早在1999年就发布了，并且有Servlet、JMS等诸多标准。和其他平台不同，Java世界早期非常热衷于标准先行，各家跟进：大家先坐下来把接口定了，然后，各自回家干活去实现接口，这样，用户就可以在不同的厂家提供的产品进行选择，还可以随意切换，因为用户编写代码的时候只需要引用接口，并不需要引用具体的底层实现（想想JDBC）。
+
+JPA（Java Persistence API）就是JavaEE的一个ORM标准，它的实现其实和Hibernate没啥本质区别，但是用户如果使用JPA，那么引用的就是javax.persistence这个“标准”包，而不是org.hibernate这样的第三方包。因为JPA只是接口，所以，还需要选择一个实现产品，跟JDBC接口和MySQL驱动一个道理。
+
+我们使用JPA时也完全可以选择Hibernate作为底层实现，但也可以选择其它的JPA提供方，比如EclipseLink。Spring内置了JPA的集成，并支持选择Hibernate或EclipseLink作为实现。这里我们仍然以主流的Hibernate作为JPA实现为例子，演示JPA的基本用法。
+
+和使用Hibernate一样，我们只需要引入如下依赖：
+```
+org.springframework:spring-context:5.2.0.RELEASE
+org.springframework:spring-orm:5.2.0.RELEASE
+javax.annotation:javax.annotation-api:1.3.2
+org.hibernate:hibernate-core:5.4.2.Final
+com.zaxxer:HikariCP:3.4.2
+org.hsqldb:hsqldb:2.5.0
+```
+然后，在AppConfig中启用声明式事务管理，创建DataSource：
+```java
+@Configuration
+@ComponentScan
+@EnableTransactionManagement
+@PropertySource("jdbc.properties")
+public class AppConfig {
+    @Bean
+    DataSource createDataSource() { ... }
+}
+```
+使用Hibernate时，我们需要创建一个LocalSessionFactoryBean，并让它再自动创建一个SessionFactory。使用JPA也是类似的，我们需要创建一个LocalContainerEntityManagerFactoryBean，并让它再自动创建一个EntityManagerFactory：
+```java
+@Bean
+LocalContainerEntityManagerFactoryBean createEntityManagerFactory(@Autowired DataSource dataSource) {
+    var entityManagerFactoryBean = new LocalContainerEntityManagerFactoryBean();
+    // 设置DataSource:
+    entityManagerFactoryBean.setDataSource(dataSource);
+    // 扫描指定的package获取所有entity class:
+    entityManagerFactoryBean.setPackagesToScan("com.itranswarp.learnjava.entity");
+    // 指定JPA的提供商是Hibernate:
+    JpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
+    entityManagerFactoryBean.setJpaVendorAdapter(vendorAdapter);
+    // 设定特定提供商自己的配置:
+    var props = new Properties();
+    props.setProperty("hibernate.hbm2ddl.auto", "update");
+    props.setProperty("hibernate.dialect", "org.hibernate.dialect.HSQLDialect");
+    props.setProperty("hibernate.show_sql", "true");
+    entityManagerFactoryBean.setJpaProperties(props);
+    return entityManagerFactoryBean;
+}
+```
+观察上述代码，除了需要注入DataSource和设定自动扫描的package外，还需要指定JPA的提供商，这里使用Spring提供的一个HibernateJpaVendorAdapter，最后，针对Hibernate自己需要的配置，以Properties的形式注入。
+
+最后，我们还需要实例化一个JpaTransactionManager，以实现声明式事务：
+```java
+@Bean
+PlatformTransactionManager createTxManager(@Autowired EntityManagerFactory entityManagerFactory) {
+    return new JpaTransactionManager(entityManagerFactory);
+}
+```
+这样，我们就完成了JPA的全部初始化工作。使用Spring+Hibernate作为JPA实现，无需任何配置文件。
+
+所有Entity Bean的配置和上一节完全相同，全部采用Annotation标注。我们现在只需关心具体的业务类如何通过JPA接口操作数据库。
+
+还是以UserService为例，除了标注@Component和@Transactional外，我们需要注入一个EntityManager，但是不要使用Autowired，而是@PersistenceContext：
+```java
+@Component
+@Transactional
+public class UserService {
+    @PersistenceContext
+    EntityManager em;
+}
+```
+我们回顾一下JDBC、Hibernate和JPA提供的接口，实际上，它们的关系如下：
+
+JDBC       |   Hibernate    |  JPA
+---------- | -------------- | --------------------
+DataSource | SessionFactory | EntityManagerFactory
+Connection | Session        | EntityManager
+
+SessionFactory和EntityManagerFactory相当于DataSource，Session和EntityManager相当于Connection。每次需要访问数据库的时候，需要获取新的Session和EntityManager，用完后再关闭。
+
+但是，注意到UserService注入的不是EntityManagerFactory，而是EntityManager，并且标注了@PersistenceContext。难道使用JPA可以允许多线程操作同一个EntityManager？
+
+实际上这里注入的并不是真正的EntityManager，而是一个EntityManager的代理类，相当于：
+```java
+public class EntityManagerProxy implements EntityManager {
+    private EntityManagerFactory emf;
+}
+```
+Spring遇到标注了@PersistenceContext的EntityManager会自动注入代理，该代理会在必要的时候自动打开EntityManager。换句话说，多线程引用的EntityManager虽然是同一个代理类，但该代理类内部针对不同线程会创建不同的EntityManager实例。
+
+简单总结一下，标注了@PersistenceContext的EntityManager可以被多线程安全地共享。
+
+因此，在UserService的每个业务方法里，直接使用EntityManager就很方便。以主键查询为例：
+```java
+public User getUserById(long id) {
+    User user = this.em.find(User.class, id);
+    if (user == null) {
+        throw new RuntimeException("User not found by id: " + id);
+    }
+    return user;
+}
+```
+JPA同样支持Criteria查询，比如我们需要的查询如下：
+```sql
+SELECT * FROM user WHERE email = ?
+```
+使用Criteria查询的代码如下：
+```java
+public User fetchUserByEmail(String email) {
+    // CriteriaBuilder:
+    var cb = em.getCriteriaBuilder();
+    CriteriaQuery<User> q = cb.createQuery(User.class);
+    Root<User> r = q.from(User.class);
+    q.where(cb.equal(r.get("email"), cb.parameter(String.class, "e")));
+    TypedQuery<User> query = em.createQuery(q);
+    // 绑定参数:
+    query.setParameter("e", email);
+    // 执行查询:
+    List<User> list = query.getResultList();
+    return list.isEmpty() ? null : list.get(0);
+}
+```
+一个简单的查询用Criteria写出来就像上面那样复杂，太恐怖了，如果条件多加几个，这种写法谁读得懂？
+
+所以，正常人还是建议写JPQL查询，它的语法和HQL基本差不多：
+```java
+public User getUserByEmail(String email) {
+    // JPQL查询:
+    TypedQuery<User> query = em.createQuery("SELECT u FROM User u WHERE u.email = :e", User.class);
+    query.setParameter("e", email);
+    List<User> list = query.getResultList();
+    if (list.isEmpty()) {
+        throw new RuntimeException("User not found by email.");
+    }
+    return list.get(0);
+}
+```
+同样的，JPA也支持NamedQuery，即先给查询起个名字，再按名字创建查询：
+```java
+public User login(String email, String password) {
+    TypedQuery<User> query = em.createNamedQuery("login", User.class);
+    query.setParameter("e", email);
+    query.setParameter("p", password);
+    List<User> list = query.getResultList();
+    return list.isEmpty() ? null : list.get(0);
+}
+```
+NamedQuery通过注解标注在User类上，它的定义和上一节的User类一样：
+```java
+@NamedQueries(
+    @NamedQuery(
+        name = "login",
+        query = "SELECT u FROM User u WHERE u.email=:e AND u.password=:p"
+    )
+)
+@Entity
+public class User {
+    ...
+}
+```
+对数据库进行增删改的操作，可以分别使用persist()、remove()和merge()方法，参数均为Entity Bean本身，使用非常简单，这里不再多述。
+
+
+
+
+
+
+
+
 
 
 ## 开发Web应用
