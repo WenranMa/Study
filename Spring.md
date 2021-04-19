@@ -2797,7 +2797,9 @@ public class User {
 
 
 
+### 集成MyBatis
 
+### 设计ORM
 
 
 
@@ -2810,9 +2812,7 @@ public class User {
 
 直接使用Servlet进行Web开发好比直接在JDBC上操作数据库，比较繁琐，更好的方法是在Servlet基础上封装MVC框架，基于MVC开发Web应用，大部分时候，不需要接触Servlet API，开发省时省力。
 
-我们在MVC开发和MVC高级开发已经由浅入深地介绍了如何编写MVC框架。当然，自己写的MVC主要是理解原理，要实现一个功能全面的MVC需要大量的工作以及广泛的测试。
-
-因此，开发Web应用，首先要选择一个优秀的MVC框架。常用的MVC框架有：
+常用的MVC框架有：
 
 - Struts：最古老的一个MVC框架，目前版本是2，和1.x有很大的区别；
 - WebWork：一个比Struts设计更优秀的MVC框架，但不知道出于什么原因，从2.0开始把自己的代码全部塞给Struts 2了；
@@ -2848,23 +2848,8 @@ public class UserController {
 ```
 但是，Spring提供的是一个IoC容器，所有的Bean，包括Controller，都在Spring IoC容器中被初始化，而Servlet容器由JavaEE服务器提供（如Tomcat），Servlet容器对Spring一无所知，他们之间到底依靠什么进行联系，又是以何种顺序初始化的？
 
-在理解上述问题之前，我们先把基于Spring MVC开发的项目结构搭建起来。首先创建基于Web的Maven工程，引入如下依赖：
-
-org.springframework:spring-context:5.2.0.RELEASE
-org.springframework:spring-webmvc:5.2.0.RELEASE
-org.springframework:spring-jdbc:5.2.0.RELEASE
-javax.annotation:javax.annotation-api:1.3.2
-io.pebbletemplates:pebble-spring5:3.1.2
-ch.qos.logback:logback-core:1.2.3
-ch.qos.logback:logback-classic:1.2.3
-com.zaxxer:HikariCP:3.4.2
-org.hsqldb:hsqldb:2.5.0
-以及provided依赖：
-
-org.apache.tomcat.embed:tomcat-embed-core:9.0.26
-org.apache.tomcat.embed:tomcat-embed-jasper:9.0.26
 这个标准的Maven Web工程目录结构如下：
-
+```
 spring-web-mvc
 ├── pom.xml
 └── src
@@ -2898,10 +2883,11 @@ spring-web-mvc
                 │   └── bootstrap.css
                 └── js
                     └── jquery.js
+```
 其中，src/main/webapp是标准web目录，WEB-INF存放web.xml，编译的class，第三方jar，以及不允许浏览器直接访问的View模版，static目录存放所有静态文件。
 
 在src/main/resources目录中存放的是Java程序读取的classpath资源文件，除了JDBC的配置文件jdbc.properties外，我们又新增了一个logback.xml，这是Logback的默认查找的配置文件：
-
+```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <appender name="STDOUT"
@@ -2919,13 +2905,14 @@ spring-web-mvc
         <appender-ref ref="STDOUT" />
     </root>
 </configuration>
+```
 上面给出了一个写入到标准输出的Logback配置，可以基于上述配置添加写入到文件的配置。
 
 在src/main/java中就是我们编写的Java代码了。
 
-配置Spring MVC
+#### 配置Spring MVC
 和普通Spring配置一样，我们编写正常的AppConfig后，只需加上@EnableWebMvc注解，就“激活”了Spring MVC：
-
+```java
 @Configuration
 @ComponentScan
 @EnableWebMvc // 启用Spring MVC
@@ -2934,8 +2921,9 @@ spring-web-mvc
 public class AppConfig {
     ...
 }
+```
 除了创建DataSource、JdbcTemplate、PlatformTransactionManager外，AppConfig需要额外创建几个用于Spring MVC的Bean：
-
+```java
 @Bean
 WebMvcConfigurer createWebMvcConfigurer() {
     return new WebMvcConfigurer() {
@@ -2945,10 +2933,11 @@ WebMvcConfigurer createWebMvcConfigurer() {
         }
     };
 }
+```
 WebMvcConfigurer并不是必须的，但我们在这里创建一个默认的WebMvcConfigurer，只覆写addResourceHandlers()，目的是让Spring MVC自动处理静态文件，并且映射路径为/static/**。
 
 另一个必须要创建的Bean是ViewResolver，因为Spring MVC允许集成任何模板引擎，使用哪个模板引擎，就实例化一个对应的ViewResolver：
-
+```java
 @Bean
 ViewResolver createViewResolver(@Autowired ServletContext servletContext) {
     PebbleEngine engine = new PebbleEngine.Builder().autoEscaping(true)
@@ -2962,10 +2951,11 @@ ViewResolver createViewResolver(@Autowired ServletContext servletContext) {
     viewResolver.setPebbleEngine(engine);
     return viewResolver;
 }
+```
 ViewResolver通过指定prefix和suffix来确定如何查找View。上述配置使用Pebble引擎，指定模板文件存放在/WEB-INF/templates/目录下。
 
 剩下的Bean都是普通的@Component，但Controller必须标记为@Controller，例如：
-
+```java
 // Controller使用@Controller标记而不是@Component:
 @Controller
 public class UserController {
@@ -2980,17 +2970,19 @@ public class UserController {
     }
     ...
 }
+```
 如果是普通的Java应用程序，我们通过main()方法可以很简单地创建一个Spring容器的实例：
-
+```java
 public static void main(String[] args) {
     ApplicationContext context = new AnnotationConfigApplicationContext(AppConfig.class);
 }
+```
 但是问题来了，现在是Web应用程序，而Web应用程序总是由Servlet容器创建，那么，Spring容器应该由谁创建？在什么时候创建？Spring容器中的Controller又是如何通过Servlet调用的？
 
 在Web应用中启动Spring容器有很多种方法，可以通过Listener启动，也可以通过Servlet启动，可以使用XML配置，也可以使用注解配置。这里，我们只介绍一种最简单的启动Spring容器的方式。
 
 第一步，我们在web.xml中配置Spring MVC提供的DispatcherServlet：
-
+```xml
 <!DOCTYPE web-app PUBLIC
  "-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN"
  "http://java.sun.com/dtd/web-app_2_3.dtd" >
@@ -3015,6 +3007,7 @@ public static void main(String[] args) {
         <url-pattern>/*</url-pattern>
     </servlet-mapping>
 </web-app>
+```
 初始化参数contextClass指定使用注解配置的AnnotationConfigWebApplicationContext，配置文件的位置参数contextConfigLocation指向AppConfig的完整类名，最后，把这个Servlet映射到/*，即处理所有URL。
 
 上述配置可以看作一个样板配置，有了这个配置，Servlet容器会首先初始化Spring MVC的DispatcherServlet，在DispatcherServlet启动时，它根据配置AppConfig创建了一个类型是WebApplicationContext的IoC容器，完成所有Bean的初始化，并将容器绑到ServletContext上。
@@ -3022,7 +3015,7 @@ public static void main(String[] args) {
 因为DispatcherServlet持有IoC容器，能从IoC容器中获取所有@Controller的Bean，因此，DispatcherServlet接收到所有HTTP请求后，根据Controller方法配置的路径，就可以正确地把请求转发到指定方法，并根据返回的ModelAndView决定如何渲染页面。
 
 最后，我们在AppConfig中通过main()方法启动嵌入式Tomcat：
-
+```java
 public static void main(String[] args) throws Exception {
     Tomcat tomcat = new Tomcat();
     tomcat.setPort(Integer.getInteger("port", 8080));
@@ -3035,21 +3028,20 @@ public static void main(String[] args) throws Exception {
     tomcat.start();
     tomcat.getServer().await();
 }
-上述Web应用程序就是我们使用Spring MVC时的一个最小启动功能集。由于使用了JDBC和数据库，用户的注册、登录信息会被持久化：
+```
 
-spring-mvc
-
-编写Controller
+#### 编写Controller
 有了Web应用程序的最基本的结构，我们的重点就可以放在如何编写Controller上。Spring MVC对Controller没有固定的要求，也不需要实现特定的接口。以UserController为例，编写Controller只需要遵循以下要点：
 
 总是标记@Controller而不是@Component：
-
+```java
 @Controller
 public class UserController {
     ...
 }
+```
 一个方法对应一个HTTP请求路径，用@GetMapping或@PostMapping表示GET或POST请求：
-
+```java
 @PostMapping("/signin")
 public ModelAndView doSignin(
         @RequestParam("email") String email,
@@ -3057,13 +3049,14 @@ public ModelAndView doSignin(
         HttpSession session) {
     ...
 }
+```
 需要接收的HTTP参数以@RequestParam()标注，可以设置默认值。如果方法参数需要传入HttpServletRequest、HttpServletResponse或者HttpSession，直接添加这个类型的参数即可，Spring MVC会自动按类型传入。
 
 返回的ModelAndView通常包含View的路径和一个Map作为Model，但也可以没有Model，例如：
 
 return new ModelAndView("signin.html"); // 仅View，没有Model
 返回重定向时既可以写new ModelAndView("redirect:/signin")，也可以直接返回String：
-
+```java
 public String index() {
     if (...) {
         return "redirect:/signin";
@@ -3071,8 +3064,9 @@ public String index() {
         return "redirect:/profile";
     }
 }
+```
 如果在方法内部直接操作HttpServletResponse发送响应，返回null表示无需进一步处理：
-
+```java
 public ModelAndView download(HttpServletResponse response) {
     byte[] data = ...
     response.setContentType("application/octet-stream");
@@ -3081,8 +3075,9 @@ public ModelAndView download(HttpServletResponse response) {
     output.flush();
     return null;
 }
+```
 对URL进行分组，每组对应一个Controller是一种很好的组织形式，并可以在Controller的class定义出添加URL前缀，例如：
-
+```java
 @Controller
 @RequestMapping("/user")
 public class UserController {
@@ -3098,7 +3093,749 @@ public class UserController {
         ...
     }
 }
+```
 实际方法的URL映射总是前缀+路径，这种形式还可以有效避免不小心导致的重复的URL映射。
 
 可见，Spring MVC允许我们编写既简单又灵活的Controller实现。
 
+
+### 使用REST
+使用Spring MVC开发Web应用程序的主要工作就是编写Controller逻辑。在Web应用中，除了需要使用MVC给用户显示页面外，还有一类API接口，我们称之为REST，通常输入输出都是JSON，便于第三方调用或者使用页面JavaScript与之交互。
+
+直接在Controller中处理JSON是可以的，因为Spring MVC的@GetMapping和@PostMapping都支持指定输入和输出的格式。如果我们想接收JSON，输出JSON，那么可以这样写：
+```java
+@PostMapping(value = "/rest",
+             consumes = "application/json;charset=UTF-8",
+             produces = "application/json;charset=UTF-8")
+@ResponseBody
+public String rest(@RequestBody User user) {
+    return "{\"restSupport\":true}";
+}
+```
+对应的Maven工程需要加入Jackson这个依赖：com.fasterxml.jackson.core:jackson-databind:2.11.0
+
+注意到@PostMapping使用consumes声明能接收的类型，使用produces声明输出的类型，并且额外加了@ResponseBody表示返回的String无需额外处理，直接作为输出内容写入HttpServletResponse。输入的JSON则根据注解@RequestBody直接被Spring反序列化为User这个JavaBean。
+
+使用curl命令测试一下：
+```bash
+$ curl -v -H "Content-Type: application/json" -d '{"email":"bob@example.com"}' http://localhost:8080/rest      
+> POST /rest HTTP/1.1
+> Host: localhost:8080
+> User-Agent: curl/7.64.1
+> Accept: */*
+> Content-Type: application/json
+> Content-Length: 27
+> 
+< HTTP/1.1 200 
+< Content-Type: application/json;charset=utf-8
+< Content-Length: 20
+< Date: Sun, 10 May 2020 09:56:01 GMT
+< 
+{"restSupport":true}
+```
+输出正是我们写入的字符串。
+
+直接用Spring的Controller配合一大堆注解写REST太麻烦了，因此，Spring还额外提供了一个@RestController注解，使用@RestController替代@Controller后，每个方法自动变成API接口方法。我们还是以实际代码举例，编写ApiController如下：
+```java
+@RestController
+@RequestMapping("/api")
+public class ApiController {
+    @Autowired
+    UserService userService;
+
+    @GetMapping("/users")
+    public List<User> users() {
+        return userService.getUsers();
+    }
+
+    @GetMapping("/users/{id}")
+    public User user(@PathVariable("id") long id) {
+        return userService.getUserById(id);
+    }
+
+    @PostMapping("/signin")
+    public Map<String, Object> signin(@RequestBody SignInRequest signinRequest) {
+        try {
+            User user = userService.signin(signinRequest.email, signinRequest.password);
+            return Map.of("user", user);
+        } catch (Exception e) {
+            return Map.of("error", "SIGNIN_FAILED", "message", e.getMessage());
+        }
+    }
+
+    public static class SignInRequest {
+        public String email;
+        public String password;
+    }
+}
+```
+编写REST接口只需要定义@RestController，然后，每个方法都是一个API接口，输入和输出只要能被Jackson序列化或反序列化为JSON就没有问题。我们用浏览器测试GET请求，可直接显示JSON响应：
+
+user-api
+
+要测试POST请求，可以用curl命令：
+```bash
+$ curl -v -H "Content-Type: application/json" -d '{"email":"bob@example.com","password":"bob123"}' http://localhost:8080/api/signin
+> POST /api/signin HTTP/1.1
+> Host: localhost:8080
+> User-Agent: curl/7.64.1
+> Accept: */*
+> Content-Type: application/json
+> Content-Length: 47
+> 
+< HTTP/1.1 200 
+< Content-Type: application/json
+< Transfer-Encoding: chunked
+< Date: Sun, 10 May 2020 08:14:13 GMT
+< 
+{"user":{"id":1,"email":"bob@example.com","password":"bob123","name":"Bob",...
+```
+注意观察上述JSON的输出，User能被正确地序列化为JSON，但暴露了password属性，这是我们不期望的。要避免输出password属性，可以把User复制到另一个UserBean对象，该对象只持有必要的属性，但这样做比较繁琐。另一种简单的方法是直接在User的password属性定义处加上@JsonIgnore表示完全忽略该属性：
+```java
+public class User {
+    ...
+
+    @JsonIgnore
+    public String getPassword() {
+        return password;
+    }
+
+    ...
+}
+```
+但是这样一来，如果写一个register(User user)方法，那么该方法的User对象也拿不到注册时用户传入的密码了。如果要允许输入password，但不允许输出password，即在JSON序列化和反序列化时，允许写属性，禁用读属性，可以更精细地控制如下：
+```java
+public class User {
+    ...
+
+    @JsonProperty(access = Access.WRITE_ONLY)
+    public String getPassword() {
+        return password;
+    }
+
+    ...
+}
+```
+同样的，可以使用@JsonProperty(access = Access.READ_ONLY)允许输出，不允许输入。
+
+
+### 集成Filter
+在Spring MVC中，DispatcherServlet只需要固定配置到web.xml中，剩下的工作主要是专注于编写Controller。
+
+但是，在Servlet规范中，我们还可以使用Filter。如果要在Spring MVC中使用Filter，应该怎么做？
+
+有的童鞋在上一节的Web应用中可能发现了，如果注册时输入中文会导致乱码，因为Servlet默认按非UTF-8编码读取参数。为了修复这一问题，我们可以简单地使用一个EncodingFilter，在全局范围类给HttpServletRequest和HttpServletResponse强制设置为UTF-8编码。
+
+可以自己编写一个EncodingFilter，也可以直接使用Spring MVC自带的一个CharacterEncodingFilter。配置Filter时，只需在web.xml中声明即可：
+
+<web-app>
+    <filter>
+        <filter-name>encodingFilter</filter-name>
+        <filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+        <init-param>
+            <param-name>encoding</param-name>
+            <param-value>UTF-8</param-value>
+        </init-param>
+        <init-param>
+            <param-name>forceEncoding</param-name>
+            <param-value>true</param-value>
+        </init-param>
+    </filter>
+
+    <filter-mapping>
+        <filter-name>encodingFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+    ...
+</web-app>
+因为这种Filter和我们业务关系不大，注意到CharacterEncodingFilter其实和Spring的IoC容器没有任何关系，两者均互不知晓对方的存在，因此，配置这种Filter十分简单。
+
+我们再考虑这样一个问题：如果允许用户使用Basic模式进行用户验证，即在HTTP请求中添加头Authorization: Basic email:password，这个需求如何实现？
+
+编写一个AuthFilter是最简单的实现方式：
+
+@Component
+public class AuthFilter implements Filter {
+    @Autowired
+    UserService userService;
+
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+        HttpServletRequest req = (HttpServletRequest) request;
+        // 获取Authorization头:
+        String authHeader = req.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Basic ")) {
+            // 从Header中提取email和password:
+            String email = prefixFrom(authHeader);
+            String password = suffixFrom(authHeader);
+            // 登录:
+            User user = userService.signin(email, password);
+            // 放入Session:
+            req.getSession().setAttribute(UserController.KEY_USER, user);
+        }
+        // 继续处理请求:
+        chain.doFilter(request, response);
+    }
+}
+现在问题来了：在Spring中创建的这个AuthFilter是一个普通Bean，Servlet容器并不知道，所以它不会起作用。
+
+如果我们直接在web.xml中声明这个AuthFilter，注意到AuthFilter的实例将由Servlet容器而不是Spring容器初始化，因此，@Autowire根本不生效，用于登录的UserService成员变量永远是null。
+
+所以，得通过一种方式，让Servlet容器实例化的Filter，间接引用Spring容器实例化的AuthFilter。Spring MVC提供了一个DelegatingFilterProxy，专门来干这个事情：
+
+<web-app>
+    <filter>
+        <filter-name>authFilter</filter-name>
+        <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+    </filter>
+
+    <filter-mapping>
+        <filter-name>authFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+    ...
+</web-app>
+我们来看实现原理：
+
+Servlet容器从web.xml中读取配置，实例化DelegatingFilterProxy，注意命名是authFilter；
+Spring容器通过扫描@Component实例化AuthFilter。
+当DelegatingFilterProxy生效后，它会自动查找注册在ServletContext上的Spring容器，再试图从容器中查找名为authFilter的Bean，也就是我们用@Component声明的AuthFilter。
+
+DelegatingFilterProxy将请求代理给AuthFilter，核心代码如下：
+
+public class DelegatingFilterProxy implements Filter {
+    private Filter delegate;
+    public void doFilter(...) throws ... {
+        if (delegate == null) {
+            delegate = findBeanFromSpringContainer();
+        }
+        delegate.doFilter(req, resp, chain);
+    }
+}
+这就是一个代理模式的简单应用。我们画个图表示它们之间的引用关系如下：
+
+┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐ ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+  ┌─────────────────────┐        ┌───────────┐   │
+│ │DelegatingFilterProxy│─│─│─ ─>│AuthFilter │
+  └─────────────────────┘        └───────────┘   │
+│ ┌─────────────────────┐ │ │    ┌───────────┐
+  │  DispatcherServlet  │─ ─ ─ ─>│Controllers│   │
+│ └─────────────────────┘ │ │    └───────────┘
+                                                 │
+│    Servlet Container    │ │  Spring Container
+ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
+如果在web.xml中配置的Filter名字和Spring容器的Bean的名字不一致，那么需要指定Bean的名字：
+
+<filter>
+    <filter-name>basicAuthFilter</filter-name>
+    <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+    <!-- 指定Bean的名字 -->
+    <init-param>
+        <param-name>targetBeanName</param-name>
+        <param-value>authFilter</param-value>
+    </init-param>
+</filter>
+实际应用时，尽量保持名字一致，以减少不必要的配置。
+
+要使用Basic模式的用户认证，我们可以使用curl命令测试。例如，用户登录名是tom@example.com，口令是tomcat，那么先构造一个使用URL编码的用户名:口令的字符串：
+
+tom%40example.com:tomcat
+对其进行Base64编码，最终构造出的Header如下：
+
+Authorization: Basic dG9tJTQwZXhhbXBsZS5jb206dG9tY2F0
+使用如下的curl命令并获得响应如下：
+
+$ curl -v -H 'Authorization: Basic dG9tJTQwZXhhbXBsZS5jb206dG9tY2F0' http://localhost:8080/profile
+> GET /profile HTTP/1.1
+> Host: localhost:8080
+> User-Agent: curl/7.64.1
+> Accept: */*
+> Authorization: Basic dG9tJTQwZXhhbXBsZS5jb206dG9tY2F0
+> 
+< HTTP/1.1 200 
+< Set-Cookie: JSESSIONID=CE0F4BFC394816F717443397D4FEABBE; Path=/; HttpOnly
+< Content-Type: text/html;charset=UTF-8
+< Content-Language: en-CN
+< Transfer-Encoding: chunked
+< Date: Wed, 29 Apr 2020 00:15:50 GMT
+< 
+<!doctype html>
+...HTML输出...
+上述响应说明AuthFilter已生效。
+
+ 注意：Basic认证模式并不安全，本节只用来作为使用Filter的示例。
+
+
+### 使用Interceptor
+在Web程序中，注意到使用Filter的时候，Filter由Servlet容器管理，它在Spring MVC的Web应用程序中作用范围如下：
+
+         │   ▲
+         ▼   │
+       ┌───────┐
+       │Filter1│
+       └───────┘
+         │   ▲
+         ▼   │
+       ┌───────┐
+┌ ─ ─ ─│Filter2│─ ─ ─ ─ ─ ─ ─ ─ ┐
+       └───────┘
+│        │   ▲                  │
+         ▼   │
+│ ┌─────────────────┐           │
+  │DispatcherServlet│<───┐
+│ └─────────────────┘    │      │
+   │              ┌────────────┐
+│  │              │ModelAndView││
+   │              └────────────┘
+│  │                     ▲      │
+   │    ┌───────────┐    │
+│  ├───>│Controller1│────┤      │
+   │    └───────────┘    │
+│  │                     │      │
+   │    ┌───────────┐    │
+│  └───>│Controller2│────┘      │
+        └───────────┘
+└ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
+上图虚线框就是Filter2的拦截范围，Filter组件实际上并不知道后续内部处理是通过Spring MVC提供的DispatcherServlet还是其他Servlet组件，因为Filter是Servlet规范定义的标准组件，它可以应用在任何基于Servlet的程序中。
+
+如果只基于Spring MVC开发应用程序，还可以使用Spring MVC提供的一种功能类似Filter的拦截器：Interceptor。和Filter相比，Interceptor拦截范围不是后续整个处理流程，而是仅针对Controller拦截：
+
+       │   ▲
+       ▼   │
+     ┌───────┐
+     │Filter1│
+     └───────┘
+       │   ▲
+       ▼   │
+     ┌───────┐
+     │Filter2│
+     └───────┘
+       │   ▲
+       ▼   │
+┌─────────────────┐
+│DispatcherServlet│<───┐
+└─────────────────┘    │
+ │              ┌────────────┐
+ │              │ModelAndView│
+ │              └────────────┘
+ │ ┌ ─ ─ ─ ─ ─ ─ ─ ─ ┐ ▲
+ │    ┌───────────┐    │
+ ├─┼─>│Controller1│──┼─┤
+ │    └───────────┘    │
+ │ │                 │ │
+ │    ┌───────────┐    │
+ └─┼─>│Controller2│──┼─┘
+      └───────────┘
+   └ ─ ─ ─ ─ ─ ─ ─ ─ ┘
+上图虚线框就是Interceptor的拦截范围，注意到Controller的处理方法一般都类似这样：
+
+@Controller
+public class Controller1 {
+    @GetMapping("/path/to/hello")
+    ModelAndView hello() {
+        ...
+    }
+}
+所以，Interceptor的拦截范围其实就是Controller方法，它实际上就相当于基于AOP的方法拦截。因为Interceptor只拦截Controller方法，所以要注意，返回ModelAndView后，后续对View的渲染就脱离了Interceptor的拦截范围。
+
+使用Interceptor的好处是Interceptor本身是Spring管理的Bean，因此注入任意Bean都非常简单。此外，可以应用多个Interceptor，并通过简单的@Order指定顺序。我们先写一个LoggerInterceptor：
+
+@Order(1)
+@Component
+public class LoggerInterceptor implements HandlerInterceptor {
+
+    final Logger logger = LoggerFactory.getLogger(getClass());
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        logger.info("preHandle {}...", request.getRequestURI());
+        if (request.getParameter("debug") != null) {
+            PrintWriter pw = response.getWriter();
+            pw.write("<p>DEBUG MODE</p>");
+            pw.flush();
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, ModelAndView modelAndView) throws Exception {
+        logger.info("postHandle {}.", request.getRequestURI());
+        if (modelAndView != null) {
+            modelAndView.addObject("__time__", LocalDateTime.now());
+        }
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+        logger.info("afterCompletion {}: exception = {}", request.getRequestURI(), ex);
+    }
+}
+一个Interceptor必须实现HandlerInterceptor接口，可以选择实现preHandle()、postHandle()和afterCompletion()方法。preHandle()是Controller方法调用前执行，postHandle()是Controller方法正常返回后执行，而afterCompletion()无论Controller方法是否抛异常都会执行，参数ex就是Controller方法抛出的异常（未抛出异常是null）。
+
+在preHandle()中，也可以直接处理响应，然后返回false表示无需调用Controller方法继续处理了，通常在认证或者安全检查失败时直接返回错误响应。在postHandle()中，因为捕获了Controller方法返回的ModelAndView，所以可以继续往ModelAndView里添加一些通用数据，很多页面需要的全局数据如Copyright信息等都可以放到这里，无需在每个Controller方法中重复添加。
+
+我们再继续添加一个AuthInterceptor，用于替代上一节使用AuthFilter进行Basic认证的功能：
+
+@Order(2)
+@Component
+public class AuthInterceptor implements HandlerInterceptor {
+
+    final Logger logger = LoggerFactory.getLogger(getClass());
+
+    @Autowired
+    UserService userService;
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
+            throws Exception {
+        logger.info("pre authenticate {}...", request.getRequestURI());
+        try {
+            authenticateByHeader(request);
+        } catch (RuntimeException e) {
+            logger.warn("login by authorization header failed.", e);
+        }
+        return true;
+    }
+
+    private void authenticateByHeader(HttpServletRequest req) {
+        String authHeader = req.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Basic ")) {
+            logger.info("try authenticate by authorization header...");
+            String up = new String(Base64.getDecoder().decode(authHeader.substring(6)), StandardCharsets.UTF_8);
+            int pos = up.indexOf(':');
+            if (pos > 0) {
+                String email = URLDecoder.decode(up.substring(0, pos), StandardCharsets.UTF_8);
+                String password = URLDecoder.decode(up.substring(pos + 1), StandardCharsets.UTF_8);
+                User user = userService.signin(email, password);
+                req.getSession().setAttribute(UserController.KEY_USER, user);
+                logger.info("user {} login by authorization header ok.", email);
+            }
+        }
+    }
+}
+这个AuthInterceptor是由Spring容器直接管理的，因此注入UserService非常方便。
+
+最后，要让拦截器生效，我们在WebMvcConfigurer中注册所有的Interceptor：
+
+@Bean
+WebMvcConfigurer createWebMvcConfigurer(@Autowired HandlerInterceptor[] interceptors) {
+    return new WebMvcConfigurer() {
+        public void addInterceptors(InterceptorRegistry registry) {
+            for (var interceptor : interceptors) {
+                registry.addInterceptor(interceptor);
+            }
+        }
+        ...
+    };
+}
+ 如果拦截器没有生效，请检查是否忘了在WebMvcConfigurer中注册。
+处理异常
+在Controller中，Spring MVC还允许定义基于@ExceptionHandler注解的异常处理方法。我们来看具体的示例代码：
+
+@Controller
+public class UserController {
+    @ExceptionHandler(RuntimeException.class)
+    public ModelAndView handleUnknowException(Exception ex) {
+        return new ModelAndView("500.html", Map.of("error", ex.getClass().getSimpleName(), "message", ex.getMessage()));
+    }
+    ...
+}
+异常处理方法没有固定的方法签名，可以传入Exception、HttpServletRequest等，返回值可以是void，也可以是ModelAndView，上述代码通过@ExceptionHandler(RuntimeException.class)表示当发生RuntimeException的时候，就自动调用此方法处理。
+
+注意到我们返回了一个新的ModelAndView，这样在应用程序内部如果发生了预料之外的异常，可以给用户显示一个出错页面，而不是简单的500 Internal Server Error或404 Not Found。例如B站的错误页：
+
+500
+
+可以编写多个错误处理方法，每个方法针对特定的异常。例如，处理LoginException使得页面可以自动跳转到登录页。
+
+使用ExceptionHandler时，要注意它仅作用于当前的Controller，即ControllerA中定义的一个ExceptionHandler方法对ControllerB不起作用。如果我们有很多Controller，每个Controller都需要处理一些通用的异常，例如LoginException，思考一下应该怎么避免重复代码？
+
+
+### 处理CORS
+在开发REST应用时，很多时候，是通过页面的JavaScript和后端的REST API交互。
+
+在JavaScript与REST交互的时候，有很多安全限制。默认情况下，浏览器按同源策略放行JavaScript调用API，即：
+
+如果A站在域名a.com页面的JavaScript调用A站自己的API时，没有问题；
+
+如果A站在域名a.com页面的JavaScript调用B站b.com的API时，将被浏览器拒绝访问，因为不满足同源策略。
+
+同源要求域名要完全相同（a.com和www.a.com不同），协议要相同（http和https不同），端口要相同 。
+
+那么，在域名a.com页面的JavaScript要调用B站b.com的API时，还有没有办法？
+
+办法是有的，那就是CORS，全称Cross-Origin Resource Sharing，是HTML5规范定义的如何跨域访问资源。如果A站的JavaScript访问B站API的时候，B站能够返回响应头Access-Control-Allow-Origin: http://a.com，那么，浏览器就允许A站的JavaScript访问B站的API。
+
+注意到跨域访问能否成功，取决于B站是否愿意给A站返回一个正确的Access-Control-Allow-Origin响应头，所以决定权永远在提供API的服务方手中。
+
+关于CORS的详细信息可以参考MDN文档，这里不再详述。
+
+使用Spring的@RestController开发REST应用时，同样会面对跨域问题。如果我们允许指定的网站通过页面JavaScript访问这些REST API，就必须正确地设置CORS。
+
+有好几种方法设置CORS，我们来一一介绍。
+
+使用@CrossOrigin
+第一种方法是使用@CrossOrigin注解，可以在@RestController的class级别或方法级别定义一个@CrossOrigin，例如：
+
+@CrossOrigin(origins = "http://local.liaoxuefeng.com:8080")
+@RestController
+@RequestMapping("/api")
+public class ApiController {
+    ...
+}
+上述定义在ApiController处的@CrossOrigin指定了只允许来自local.liaoxuefeng.com跨域访问，允许多个域访问需要写成数组形式，例如origins = {"http://a.com", "https://www.b.com"})。如果要允许任何域访问，写成origins = "*"即可。
+
+如果有多个REST Controller都需要使用CORS，那么，每个Controller都必须标注@CrossOrigin注解。
+
+使用CorsRegistry
+第二种方法是在WebMvcConfigurer中定义一个全局CORS配置，下面是一个示例：
+
+@Bean
+WebMvcConfigurer createWebMvcConfigurer() {
+    return new WebMvcConfigurer() {
+        @Override
+        public void addCorsMappings(CorsRegistry registry) {
+            registry.addMapping("/api/**")
+                    .allowedOrigins("http://local.liaoxuefeng.com:8080")
+                    .allowedMethods("GET", "POST")
+                    .maxAge(3600);
+            // 可以继续添加其他URL规则:
+            // registry.addMapping("/rest/v2/**")...
+        }
+    };
+}
+这种方式可以创建一个全局CORS配置，如果仔细地设计URL结构，那么可以一目了然地看到各个URL的CORS规则，推荐使用这种方式配置CORS。
+
+使用CorsFilter
+第三种方法是使用Spring提供的CorsFilter，我们在集成Filter中详细介绍了将Spring容器内置的Bean暴露为Servlet容器的Filter的方法，由于这种配置方式需要修改web.xml，也比较繁琐，所以推荐使用第二种方式。
+
+测试
+当我们配置好CORS后，可以在浏览器中测试一下规则是否生效。
+
+我们先用http://localhost:8080在Chrome浏览器中打开首页，然后打开Chrome的开发者工具，切换到Console，输入一个JavaScript语句来跨域访问API：
+
+$.getJSON( "http://local.liaoxuefeng.com:8080/api/users", (data) => console.log(JSON.stringify(data)));
+上述源站的域是http://localhost:8080，跨域访问的是http://local.liaoxuefeng.com:8080，因为配置的CORS不允许localhost访问，所以不出意外地得到一个错误：
+
+cors-deny
+
+浏览题打印了错误原因就是been blocked by CORS policy。
+
+我们再用http://local.liaoxuefeng.com:8080在Chrome浏览器中打开首页，在Console中执行JavaScript访问localhost：
+
+$.getJSON( "http://localhost:8080/api/users", (data) => console.log(JSON.stringify(data)));
+因为CORS规则允许来自http://local.liaoxuefeng.com:8080的访问，因此访问成功，打印出API的返回值：
+
+cors-ok
+
+
+### 国际化
+
+### 异步处理
+
+### WebSocket
+
+## 集成第三方组件
+
+### JavaMail
+
+### JMS
+
+### Scheduler
+
+### 集成JMX
+在Spring中，可以方便地集成JMX。
+
+那么第一个问题来了：什么是JMX？
+
+JMX是Java Management Extensions，它是一个Java平台的管理和监控接口。为什么要搞JMX呢？因为在所有的应用程序中，对运行中的程序进行监控都是非常重要的，Java应用程序也不例外。我们肯定希望知道Java应用程序当前的状态，例如，占用了多少内存，分配了多少内存，当前有多少活动线程，有多少休眠线程等等。如何获取这些信息呢？
+
+为了标准化管理和监控，Java平台使用JMX作为管理和监控的标准接口，任何程序，只要按JMX规范访问这个接口，就可以获取所有管理与监控信息。
+
+实际上，常用的运维监控如Zabbix、Nagios等工具对JVM本身的监控都是通过JMX获取的信息。
+
+因为JMX是一个标准接口，不但可以用于管理JVM，还可以管理应用程序自身。下图是JMX的架构：
+```
+    ┌─────────┐  ┌─────────┐
+    │jconsole │  │   Web   │
+    └─────────┘  └─────────┘
+         │            │
+┌ ─ ─ ─ ─│─ ─ ─ ─ ─ ─ ┼ ─ ─ ─ ─
+ JVM     ▼            ▼        │
+│   ┌─────────┐  ┌─────────┐
+  ┌─┤Connector├──┤ Adaptor ├─┐ │
+│ │ └─────────┘  └─────────┘ │
+  │       MBeanServer        │ │
+│ │ ┌──────┐┌──────┐┌──────┐ │
+  └─┤MBean1├┤MBean2├┤MBean3├─┘ │
+│   └──────┘└──────┘└──────┘
+ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
+```
+JMX把所有被管理的资源都称为MBean（Managed Bean），这些MBean全部由MBeanServer管理，如果要访问MBean，可以通过MBeanServer对外提供的访问接口，例如通过RMI或HTTP访问。
+
+注意到使用JMX不需要安装任何额外组件，也不需要第三方库，因为MBeanServer已经内置在JavaSE标准库中了。JavaSE还提供了一个jconsole程序，用于通过RMI连接到MBeanServer，这样就可以管理整个Java进程。
+
+除了JVM会把自身的各种资源以MBean注册到JMX中，我们自己的配置、监控信息也可以作为MBean注册到JMX，这样，管理程序就可以直接控制我们暴露的MBean。因此，应用程序使用JMX，只需要两步：
+
+编写MBean提供管理接口和监控数据；
+注册MBean。
+在Spring应用程序中，使用JMX只需要一步：
+
+编写MBean提供管理接口和监控数据。
+第二步注册的过程由Spring自动完成。我们以实际工程为例，首先在AppConfig中加上@EnableMBeanExport注解，告诉Spring自动注册MBean：
+
+@Configuration
+@ComponentScan
+@EnableWebMvc
+@EnableMBeanExport // 自动注册MBean
+@EnableTransactionManagement
+@PropertySource({ "classpath:/jdbc.properties" })
+public class AppConfig {
+    ...
+}
+剩下的全部工作就是编写MBean。我们以实际问题为例，假设我们希望给应用程序添加一个IP黑名单功能，凡是在黑名单中的IP禁止访问，传统的做法是定义一个配置文件，启动的时候读取：
+
+ blacklist.txt
+1.2.3.4
+5.6.7.8
+2.2.3.4
+...
+如果要修改黑名单怎么办？修改配置文件，然后重启应用程序。
+
+但是每次都重启应用程序实在是太麻烦了，能不能不重启应用程序？可以自己写一个定时读取配置文件的功能，检测到文件改动时自动重新读取。
+
+上述需求本质上是在应用程序运行期间对参数、配置等进行热更新并要求尽快生效。如果以JMX的方式实现，我们不必自己编写自动重新读取等任何代码，只需要提供一个符合JMX标准的MBean来存储配置即可。
+
+还是以IP黑名单为例，JMX的MBean通常以MBean结尾，因此我们遵循标准命名规范，首先编写一个BlacklistMBean：
+
+public class BlacklistMBean {
+    private Set<String> ips = new HashSet<>();
+
+    public String[] getBlacklist() {
+        return ips.toArray(String[]::new);
+    }
+
+    public void addBlacklist(String ip) {
+        ips.add(ip);
+    }
+
+    public void removeBlacklist(String ip) {
+        ips.remove(ip);
+    }
+
+    public boolean shouldBlock(String ip) {
+        return ips.contains(ip);
+    }
+}
+这个MBean没什么特殊的，它的逻辑和普通Java类没有任何区别。
+
+下一步，我们要使用JMX的客户端来实时热更新这个MBean，所以要给它加上一些注解，让Spring能根据注解自动把相关方法注册到MBeanServer中：
+
+@Component
+@ManagedResource(objectName = "sample:name=blacklist", description = "Blacklist of IP addresses")
+public class BlacklistMBean {
+    private Set<String> ips = new HashSet<>();
+
+    @ManagedAttribute(description = "Get IP addresses in blacklist")
+    public String[] getBlacklist() {
+        return ips.toArray(String[]::new);
+    }
+
+    @ManagedOperation
+    @ManagedOperationParameter(name = "ip", description = "Target IP address that will be added to blacklist")
+    public void addBlacklist(String ip) {
+        ips.add(ip);
+    }
+
+    @ManagedOperation
+    @ManagedOperationParameter(name = "ip", description = "Target IP address that will be removed from blacklist")
+    public void removeBlacklist(String ip) {
+        ips.remove(ip);
+    }
+
+    public boolean shouldBlock(String ip) {
+        return ips.contains(ip);
+    }
+}
+观察上述代码，BlacklistMBean首先是一个标准的Spring管理的Bean，其次，添加了@ManagedResource表示这是一个MBean，将要被注册到JMX。objectName指定了这个MBean的名字，通常以company:name=Xxx来分类MBean。
+
+对于属性，使用@ManagedAttribute注解标注。上述MBean只有get属性，没有set属性，说明这是一个只读属性。
+
+对于操作，使用@ManagedOperation注解标准。上述MBean定义了两个操作：addBlacklist()和removeBlacklist()，其他方法如shouldBlock()不会被暴露给JMX。
+
+使用MBean和普通Bean是完全一样的。例如，我们在BlacklistInterceptor对IP进行黑名单拦截：
+
+@Order(1)
+@Component
+public class BlacklistInterceptor implements HandlerInterceptor {
+    final Logger logger = LoggerFactory.getLogger(getClass());
+
+    @Autowired
+    BlacklistMBean blacklistMBean;
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
+            throws Exception {
+        String ip = request.getRemoteAddr();
+        logger.info("check ip address {}...", ip);
+        // 是否在黑名单中:
+        if (blacklistMBean.shouldBlock(ip)) {
+            logger.warn("will block ip {} for it is in blacklist.", ip);
+            // 发送403错误响应:
+            response.sendError(403);
+            return false;
+        }
+        return true;
+    }
+}
+下一步就是正常启动Web应用程序，不要关闭它，我们打开另一个命令行窗口，输入jconsole启动JavaSE自带的一个JMX客户端程序：
+
+jconsole
+
+通过jconsole连接到一个Java进程最简单的方法是直接在Local Process中找到正在运行的AppConfig，点击Connect即可连接到我们当前正在运行的Web应用，在jconsole中可直接看到内存、CPU等资源的监控。
+
+我们点击MBean，左侧按分类列出所有MBean，可以在java.lang查看内存等信息：
+
+mbean
+
+细心的童鞋可以看到HikariCP连接池也是通过JMX监控的。
+
+在sample中可以看到我们自己的MBean，点击可查看属性blacklist：
+
+mbean-value
+
+点击Operations-addBlacklist，可以填入127.0.0.1并点击addBlacklist按钮，相当于jconsole通过JMX接口，调用了我们自己的BlacklistMBean的addBlacklist()方法，传入的参数就是填入的127.0.0.1：
+
+mbean-invoke-ok
+
+再次查看属性blacklist，可以看到结果已经更新了：
+
+mbean-modified
+
+我们可以在浏览器中测试一下黑名单功能是否已生效：
+
+403
+
+可见，127.0.0.1确实被添加到了黑名单，后台日志打印如下：
+
+2020-06-06 20:22:12 INFO  c.i.l.web.BlacklistInterceptor - check ip address 127.0.0.1...
+2020-06-06 20:22:12 WARN  c.i.l.web.BlacklistInterceptor - will block ip 127.0.0.1 for it is in blacklist.
+注意：如果使用IPv6，那么需要把0:0:0:0:0:0:0:1这个本机地址加到黑名单。
+
+如果从jconsole中调用removeBlacklist移除127.0.0.1，刷新浏览器可以看到又允许访问了。
+
+使用jconsole直接通过Local Process连接JVM有个限制，就是jconsole和正在运行的JVM必须在同一台机器。如果要远程连接，首先要打开JMX端口。我们在启动AppConfig时，需要传入以下JVM启动参数：
+
+-Dcom.sun.management.jmxremote.port=19999
+-Dcom.sun.management.jmxremote.authenticate=false
+-Dcom.sun.management.jmxremote.ssl=false
+第一个参数表示在19999端口监听JMX连接，第二个和第三个参数表示无需验证，不使用SSL连接，在开发测试阶段比较方便，生产环境必须指定验证方式并启用SSL。详细参数可参考Oracle官方文档。这样jconsole可以用ip:19999的远程方式连接JMX。连接后的操作是完全一样的。
+
+许多JavaEE服务器如JBoss的管理后台都是通过JMX提供管理接口，并由Web方式访问，对用户更加友好。
+
+
+
+# Spring Boot
+
+## 
