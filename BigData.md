@@ -590,3 +590,102 @@ Map+Reduce的简单模型很黄很暴力，虽然好用，但是很笨重。第�
 除此之外，还有一些更特制的系统/组件，比如Mahout是分布式机器学习库，Protobuf是数据交换的编码和库，ZooKeeper是高一致性的分布存取协同系统，等等。
 
 有了这么多乱七八糟的工具，都在同一个集群上运转，大家需要互相尊重有序工作。所以另外一个重要组件是，调度系统。现在最流行的是Yarn。
+
+
+
+
+
+
+---
+
+## Parquet
+### 简介
+Apache Parquet是Hadoop生态圈中一种新型列式存储格式，它可以兼容Hadoop生态圈中大多数计算框架(Hadoop、Spark等)，被多种查询引擎支持(Hive、Impala、Drill等)。Parquet是语言无关的，而且不与任何一种数据处理框架绑定在一起，适配多种语言和组件，能够与Parquet配合的组件有：
+
+- 查询引擎: Hive, Impala, Pig, Presto, Drill, Tajo, HAWQ, IBM Big SQL
+- 计算框架: MapReduce, Spark, Cascading, Crunch, Scalding, Kite
+- 数据模型: Avro, Thrift, Protocol Buffers, POJOs
+
+那么Parquet是如何与这些组件协作的呢？这个可以通过下图来说明。数据从内存到Parquet文件或者反过来的过程主要由以下三个部分组成：
+
+- 存储格式(storage format)，parquet-format项目定义了Parquet内部的数据类型、存储格式等。
+- 对象模型转换器(object model converters)，这部分功能由parquet-mr项目来实现，主要完成外部对象模型与Parquet内部数据类型的映射。
+- 对象模型(object models)，对象模型可以简单理解为内存中的数据表示，Avro, Thrift, Protocol Buffers, Hive SerDe, Pig Tuple, Spark SQL InternalRow等这些都是对象模型。Parquet也提供了一个example object model 帮助大家理解。
+
+例如parquet-mr项目里的parquet-pig项目就是负责把内存中的Pig Tuple序列化并按列存储成Parquet格式，以及反过来把Parquet文件的数据反序列化成Pig Tuple。
+
+这里需要注意的是Avro, Thrift, Protocol Buffers都有他们自己的存储格式，但是Parquet并没有使用他们，而是使用了自己在parquet-format项目里定义的存储格式。所以如果你的应用使用了Avro等对象模型，这些数据序列化到磁盘还是使用的parquet-mr定义的转换器把他们转换成Parquet自己的存储格式。
+
+
+### 列式存储
+列式存储，顾名思义就是按照列进行存储数据，把某一列的数据连续的存储，每一行中的不同列的值离散分布。列式存储技术并不新鲜，在关系数据库中都已经在使用，尤其是在针对OLAP场景下的数据存储，由于OLAP场景下的数据大部分情况下都是批量导入，基本上不需要支持单条记录的增删改操作，而查询的时候大多数都是只使用部分列进行过滤、聚合，对少数列进行计算(基本不需要select * from xx之类的查询)。
+
+以下这张表有A、B、C三个字段：
+
+A | B | C
+--|---|--
+A1| B1| C1
+A2| B2| C2
+A3| B3| C3
+
+行存储：
+```
+|A1|B1|C1|A2|B2|C2|A3|B3|C3| |-|-|-|-|-|-|-|-|-|
+```
+列存储
+```
+|A1|A2|A3|B1|B2|B3|C1|C2|C3| |-|-|-|-|-|-|-|-|-|
+```
+列式存储可以大大提升这类查询的性能，较之于行是存储，列式存储能够带来这些优化：
+
+- 查询的时候不需要扫描全部的数据，而只需要读取每次查询涉及的列，这样可以将I/O消耗降低N倍，另外可以保存每一列的统计信息(min、max、sum等)，实现部分的谓词下推。
+- 由于每一列的成员都是同构的，可以针对不同的数据类型使用更高效的数据压缩算法，进一步减小I/O。
+- 由于每一列的成员的同构性，可以使用更加适合CPU pipeline的编码方式，减小CPU的缓存失效。
+
+### 数据模型
+理解Parquet首先要理解这个列存储格式的数据模型。我们以一个下面这样的schema和数据为例来说明这个问题。
+```
+message AddressBook {
+ required string owner;
+ repeated string ownerPhoneNumbers;
+ repeated group contacts {
+   required string name;
+   optional string phoneNumber;
+ }
+}
+```
+这个schema中每条记录表示一个人的AddressBook。有且只有一个owner，owner可以有0个或者多个ownerPhoneNumbers，owner可以有0个或者多个contacts。每个contact有且只有一个name，这个contact的phoneNumber可有可无。
+
+每个schema的结构是这样的：根叫做message，message包含多个fields。每个field包含三个属性：repetition, type, name。repetition可以是以下三种：required（出现1次），optional（出现0次或者1次），repeated（出现0次或者多次）。type可以是一个group或者一个primitive类型。
+
+Parquet格式的数据类型不需要复杂的Map, List, Set等，而是使用repeated fields 和 groups来表示。例如List和Set可以被表示成一个repeated field，Map可以表示成一个包含有key-value对的repeated group ，而且key是required的。
+
+List(或Set)可以用repeated field来表示：
+
+？？？
+
+
+
+Map可以用包含key-value对且key是required的repeated group来表示：
+
+？？？
+
+
+
+
+
+### 列存储格式
+列存储通过将相同基本类型（primitive type）的值存储在一起来提供高效的编码和解码。为了用列存储来存储如上嵌套的数据结构，我们需要将该schema用某种方式映射到一系列的列使我们能够将记录写到列中并且能读取成原来的嵌套的数据结构。
+在Parquet格式的存储中，一个schema的树结构有几个叶子节点（叶子节点都是primitive type），实际的存储中就会有多少column。
+上面的schema的树结构如图所示：
+
+上面这个schema的数据存储实际上有四个column，如下图所示：
+
+只有字段值不能表达清楚记录的结构。给出一个repeated field的两个值，我们不知道此值是按什么‘深度’被重复的（比如，这些值是来自两个不同的记录，还是相同的记录中两个重复的值）。同样的，给出一个缺失的可选字段，我们不知道整个路径有多少字段被显示定义了。因此我们将介绍repetition level 和 definition level的概念。
+example：
+两条嵌套的记录和它们的schema：
+
+将上图的两条记录用列存储表示：
+
+上面的例子主要是想让大家对嵌套结构的列式存储有个直观的印象，包括repetition level 和 definition level的应用，接下来详细介绍repetition level 和 definition level。
+
