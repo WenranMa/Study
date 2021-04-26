@@ -593,9 +593,6 @@ Map+Reduce的简单模型很黄很暴力，虽然好用，但是很笨重。第�
 
 
 
-
-
-
 ---
 
 ## Parquet
@@ -760,13 +757,35 @@ message ExampleDefinitionLevel {
 因为b是required field，所以第3行c的definition level为1而不是2（因为b是required field，所有不需计算在内）；第4行c的definition level为2而不是3。
 
 ### Repetition levels
-Repetition level指明该值在路径中哪个repeated field重复。Repetition level是针对repeted field的。注意在图2中的Code字段。可以看到它在r1出现了3次。‘en-us’、‘en’在第一个Name中，而‘en-gb’在第三个Name中。结合了图2你肯定能理解我上一句话并知道‘en-us’、‘en’、‘en-gb’出现在r1中的具体位置，但是不看图的话呢？怎么用文字，或者说是一种定义、一种属性、一个数值，诠释清楚它们出现的位置？这就是重复深度这个概念的作用，它能用一个数字告诉我们在路径中的什么重复字段，此值重复了，以此来确定此值的位置（注意，这里的重复，特指在某个repeated类型的字段下“重复”出现的“重复”）。我们用深度0表示一个纪录的开头（虚拟的根节点），深度的计算忽略非重复字段（标签不是repeated的字段都不算在深度里）。所以在Name.Language.Code这个路径中，包含两个重复字段，Name和Language，如果在Name处重复，重复深度为1（虚拟的根节点是0，下一级就是1），在Language处重复就是2，不可能在Code处重复，它是required类型，表示有且仅有一个；同样的，在路径Links.Forward中，Links是optional的，不参与深度计算（不可能重复），Forward是repeated的，因此只有在Forward处重复时重复深度为1。现在我们从上至下扫描纪录r1。当我们遇到’en-us’，我们没看到任何重复字段，也就是说，重复深度是0。当我们遇到‘en’，字段Language重复了（在‘en-us’的路径里已经出现过一个Language），所以重复深度是2.最终，当我们遇到’en-gb‘，Name重复了（Name在前面‘en-us’和‘en’的路径里已经出现过一次，而此Name后Language只出现过一次，没有重复），所以重复深度是1。因此，r1中Code的值的重复深度是0、2、1.
-要注意第二个Name在r1中没有包含任何Code值。为了确定‘en-gb’出现在第三个Name而不是第二个，我们添加一个NULL值在‘en’和‘en-gb’之间（如图3所示）。
+重复深度这个概念的作用，是能用一个数字告诉我们在路径中的什么重复字段，此值重复了，以此来确定此值的位置（注意，这里的重复，特指在某个repeated类型的字段下“重复”出现的“重复”）。我们用深度0表示一个纪录的开头（虚拟的根节点），深度的计算忽略非重复字段（标签不是repeated的字段都不算在深度里）。
+
+比如：
+
+![repetition level](./img/parquet_repetition_level_01.png)
+
+The column will contain the following repetition levels and values:
+![repetition level](./img/parquet_repetition_level_02.png)
+
+a,b,c 是一个 level2 List， d,e,f,g 是一个level2 List，h 是一个level2List，i,j 是一个level2 List。a,b,c,d,e,f,g 所在的两个 level2 list是同一个 level1 List 里的，h,i,j 所在的两个 level2 List 是同一个 level1List里的。那么repetition level标示着新List出现的层级：
+
+- 0 表示整条记录的开始，此时应该创建新的level1 List和level2 List
+- 1 表示level1 List 的开始，此时应该创建一个level2 List
+- 2 表示level2 List中新的值产生，此时不新建List，只在List里插入新值.
+
+下图可以看出，换句话说就是repetition level告诉我们，在从列式表达，还原嵌套结构的时候，是在哪一级插入新值的.
+
+![repetition level](./img/parquet_repetition_level_03.png)
+
+repetiton = 0，标志着一整条新 record 的开始. 在扁平化结构里，没有repetition 所以 repetition level 总是 0. Only levels that arerepeated need a Repetitionlevel:optional 和 required 永远也不会重复，在计算 repetition level的时候，可将其跳过.
 
 ### Striping and assembly
 下面用AddressBook的例子来说明Striping和assembly的过程。对于每个column的最大的Repetion Level和 Definition Level下图所示。
 
-下面这样两条record：AddressBook {
+![Striping](./img/parquet_s_01.png)
+
+下面这样两条record：
+```
+AddressBook {
  owner: "Julien Le Dem",
  ownerPhoneNumbers: "555 123 4567",
  ownerPhoneNumbers: "555 666 1337",
@@ -781,9 +800,12 @@ Repetition level指明该值在路径中哪个repeated field重复。Repetition 
 AddressBook {
  owner: "A. Nonymous"
 }
+```
 
-以contacts.phoneNumber这一列为例，"555 987 6543"这个contacts.phoneNumber的Definition Level是最大Definition Level=2。而如果一个contact没有phoneNumber，那么它的Definition Level就是1。如果连contact都没有，那么它的Definition Level就是0。
-下面我们拿掉其他三个column只看contacts.phoneNumber这个column，把上面的两条record简化成下面的样子：AddressBook {
+以contacts.phoneNumber这一列为例，"555 987 6543"这个contacts.phoneNumber的Definition Level是最大Definition Level=2。而如果一个contact没有phoneNumber，那么它的Definition Level就是1。如果连contact都没有，那么它的Definition Level就是0。下面我们拿掉其他三个column只看contacts.phoneNumber这个column，把上面的两条record简化成下面的样子：
+
+```
+AddressBook {
  contacts: {
    phoneNumber: "555 987 6543"
  }
@@ -792,39 +814,52 @@ AddressBook {
 }
 AddressBook {
 }
+```
 
 这两条记录的序列化过程如下图所示：
 
+![Striping](./img/parquet_s_02.png)
+
 如果我们要把这个column写到磁盘上，磁盘上会写入这样的数据：
 
+- contacts.phoneNumber: “555 987 6543”
+    - new record: R = 0
+    - value is defined: D = maximum (2)
+
+- contacts.phoneNumber: null
+    - repeated contacts: R = 1
+    - only defined up to contacts: D = 1
+
+- contacts: null
+    - new record: R = 0
+    - only defined up to AddressBook: D = 0
+
 注意：NULL实际上不会被存储，如果一个column value的Definition Level小于该column最大Definition Level的话，那么就表示这是一个空值。
+
+![Striping](./img/parquet_s_03.png)
+
 下面是从磁盘上读取数据并反序列化成AddressBook对象的过程：
 
-读取第一个三元组R=0, D=2, Value=”555 987 6543”
-        R=0 表示是一个新的record，要根据schema创建一个新的nested record直到Definition Level=2。
-        D=2 说明Definition Level=Max Definition Level，那么这个Value就是contacts.phoneNumber这一列的值，赋值操作contacts.phoneNumber=”555 987 6543”。
-    
-    
-读取第二个三元组 R=1, D=1
-        R=1 表示不是一个新的record，是上一个record中一个新的contacts。
-        D=1 表示contacts定义了，但是contacts的下一个级别也就是phoneNumber没有被定义，所以创建一个空的contacts。
-    
-    
-读取第三个三元组 R=0, D=0
-        R=0 表示一个新的record，根据schema创建一个新的nested record直到Definition Level=0，也就是创建一个AddressBook根节点。
-    
+- R=0, D=2, Value=”555 987 6543”
+    - R=0 表示是一个新的record，要根据schema创建一个新的nested record直到Definition Level=2。
+    - D=2 说明Definition Level=Max Definition Level，那么这个Value就是contacts.phoneNumber这一列的值，赋值操作contacts.phoneNumber=”555 987 6543”。
 
-可以看出在Parquet列式存储中，对于一个schema的所有叶子节点会被当成column存储，而且叶子节点一定是primitive类型的数据。对于这样一个primitive类型的数据会衍生出三个sub columns (R, D, Value)，也就是从逻辑上看除了数据本身以外会存储大量的Definition Level和Repetition Level。那么这些Definition Level和Repetition Level是否会带来额外的存储开销呢？实际上这部分额外的存储开销是可以忽略的。因为对于一个schema来说level都是有上限的，而且非repeated类型的field不需要Repetition
-    Level，required类型的field不需要Definition Level，也可以缩短这个上限。例如对于Twitter的7层嵌套的schema来说，只需要3个bits就可以表示这两个Level了。
-对于存储关系型的record，record中的元素都是非空的（NOT NULL in SQL）。Repetion Level和Definition Level都是0，所以这两个sub column就完全不需要存储了。所以在存储非嵌套类型的时候，Parquet格式也是一样高效的。
+- R=1, D=1
+    - R=1 表示不是一个新的record，是上一个record中一个新的contacts。
+    - D=1 表示contacts定义了，但是contacts的下一个级别也就是phoneNumber没有被定义，所以创建一个空的contacts。
+
+- R=0, D=0
+    - R=0 表示一个新的record，根据schema创建一个新的nested record直到Definition Level=0，也就是创建一个AddressBook根节点。
+    - D=0 都没有定义，所以是个空的Addressbook。
+
+可以看出在Parquet列式存储中，对于一个schema的所有叶子节点会被当成column存储，而且叶子节点一定是primitive类型的数据。对于这样一个primitive类型的数据会衍生出三个sub columns (R, D, Value)，也就是从逻辑上看除了数据本身以外会存储大量的Definition Level和Repetition Level。那么这些Definition Level和Repetition Level是否会带来额外的存储开销呢？实际上这部分额外的存储开销是可以忽略的。因为对于一个schema来说level都是有上限的，而且非repeated类型的field不需要Repetition Level，required类型的field不需要Definition Level，也可以缩短这个上限。
 
 ### 文件格式
-
 行组(Row Group)：按照行将数据物理上划分为多个单元，每一个行组包含一定的行数。一个行组包含这个行组对应的区间内的所有列的列块。
 
 官方建议：
-       
-更大的行组意味着更大的列块，使得能够做更大的序列IO。我们建议设置更大的行组（512MB-1GB）。因为一次可能需要读取整个行组，所以我们想让一个行组刚好在一个HDFS块中。因此，HDFS块的大小也需要被设得更大。一个最优的读设置是：1GB的行组，1GB的HDFS块，1个HDFS块放一个HDFS文件。
+
+    更大的行组意味着更大的列块，使得能够做更大的序列IO。我们建议设置更大的行组（512MB-1GB）。因为一次可能需要读取整个行组，所以我们想让一个行组刚好在一个HDFS块中。因此，HDFS块的大小也需要被设得更大。一个最优的读设置是：1GB的行组，1GB的HDFS块，1个HDFS块放一个HDFS文件。
 
 列块(Column Chunk)：在一个行组中每一列保存在一个列块中，行组中的所有列连续的存储在这个行组文件中。不同的列块可能使用不同的算法进行压缩。一个列块由多个页组成。
 
@@ -856,97 +891,8 @@ AddressBook {
 
 
 
-Repetition levels
-To support repeated fields we need to store when new lists are starting in a column of values. This is what repetition level is for: it is the level at which we have to create a new list for the current value. In other words, the repetition level can be seen as a marker of when to start a new list and at which level. For example consider the following representation of a list of lists of strings:
-
-![repetition level](./img/parquet_repetition_level_01.png)
-
-The column will contain the following repetition levels and values:
-![repetition level](./img/parquet_repetition_level_02.png)
 
 
-The repetition level marks the beginning of lists and can be interpreted as follows:
-
-0 marks every new record and implies creating a new level1 and level2 list
-1 marks every new level1 list and implies creating a new level2 list as well.
-2 marks every new element in a level2 list.
-On the following diagram we can visually see that it is the level of nesting at which we insert records:
-
-![repetition level](./img/parquet_repetition_level_03.png)
-
-A repetition level of 0 marks the beginning of a new record. In a flat schema there is no repetition and the repetition level is always 0. Only levels that are repeated need a Repetition level: optional or required fields are never repeated and can be skipped while attributing repetition levels.
-
-Striping and assembly
-Now using the two notions together, let’s consider the AddressBook example again. This table shows the maximum repetition and definition levels for each column with explanations on why they are smaller than the depth of the column:
-
-![repetition level](./img/parquet_s_01.png)
 
 
-In particular for the column contacts.phoneNumber, a defined phone number will have the maximum definition level of 2, and a contact without phone number will have a definition level of 1. In the case where contacts are absent, it will be 0.
 
-AddressBook {
-owner: "Julien Le Dem",
-ownerPhoneNumbers: "555 123 4567",
-ownerPhoneNumbers: "555 666 1337",
-contacts: {
-name: "Dmitriy Ryaboy",
-phoneNumber: "555 987 6543",
-},
-contacts: {
-name: "Chris Aniszczyk"
-}
-}
-AddressBook {
-owner: "A. Nonymous"
-}
-We’ll now focus on the column contacts.phoneNumber to illustrate this.
-
-Once projected the record has the following structure:
-
-AddressBook {
-contacts: {
-phoneNumber: "555 987 6543"
-}
-contacts: {
-}
-}
-AddressBook {
-}
-The data in the column will be as follows (R = Repetition Level, D = Definition Level)
-
-![repetition level](./img/parquet_s_02.png)
-
-To write the column we iterate through the record data for this column:
-
-contacts.phoneNumber: “555 987 6543”
-new record: R = 0
-value is defined: D = maximum (2)
-contacts.phoneNumber: null
-repeated contacts: R = 1
-only defined up to contacts: D = 1
-contacts: null
-new record: R = 0
-only defined up to AddressBook: D = 0
-The columns contains the following data:
-
-![repetition level](./img/parquet_s_03.png)
-
-Note that NULL values are represented here for clarity but are not stored at all. A definition level strictly lower than the maximum (here 2) indicates a NULL value.
-
-To reconstruct the records from the column, we iterate through the column:
-
-R=0, D=2, Value = “555 987 6543”:
-R = 0 means a new record. We recreate the nested records from the root until the definition level (here 2)
-D = 2 which is the maximum. The value is defined and is inserted.
-R=1, D=1:
-R = 1 means a new entry in the contacts list at level 1.
-D = 1 means contacts is defined but not phoneNumber, so we just create an empty contacts.
-R=0, D=0:
-R = 0 means a new record. we create the nested records from the root until the definition level
-D = 0 => contacts is actually null, so we only have an empty AddressBook
-Storing definition levels and repetition levels efficiently
-In regards to storage, this effectively boils down to creating three sub columns for each primitive type. However, the overhead for storing these sub columns is low thanks to the columnar representation. That’s because levels are bound by the depth of the schema and can be stored efficiently using only a few bits per value (A single bit stores levels up to 1, 2 bits store levels up to 3, 3 bits can store 7 levels of nesting). In the address book example above, the column owner has a depth of one and the column contacts.name has a depth of two. The levels will always have zero as a lower bound and the depth of the column as an upper bound. Even better, fields that are not repeated do not need a repetition level and required fields do not need a definition level, bringing down the upper bound.
-
-In the special case of a flat schema with all fields required (equivalent of NOT NULL in SQL), the repetition levels and definition levels are omitted completely (they would always be zero) and we only store the values of the columns. This is effectively the same representation we would choose if we had to support only flat tables.
-
-These characteristics make for a very compact representation of nesting that can be efficiently encoded using a combination of Run Length Encoding and bit packing. A sparse column with a lot of null values will compress to almost nothing, similarly an optional column which is actually always set will cost very little overhead to store millions of 1s. In practice, space occupied by levels is negligible. This representation is a generalization of how we would represent the simple case of a flat schema: writing all values of a column sequentially and using a bitfield for storing nulls when a field is optional.
