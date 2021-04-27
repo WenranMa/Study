@@ -342,6 +342,15 @@ Type values and their behaviors are:
 - ExternalName: Maps the Service to the contents of the externalName field (e.g. foo.bar.example.com), by returning a CNAME record with its value. No proxying of any kind is set up.
 
 
+
+### Ingress Controller
+Nginx Ingress Controller
+
+### Ingress
+
+
+
+
 #### Docker entry and cmd overwritten.
 
 When you override the default Entrypoint and Cmd, these rules apply:

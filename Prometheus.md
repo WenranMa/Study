@@ -135,6 +135,9 @@ httpReqs.DeleteLabelValues("200", "GET")
 httpReqs.Delete(prometheus.Labels{"method": "GET", "code": "200"})
 ```
 
+CounterVec不会初始化
+
+
 ##### Gauge
 - Gauge
 
@@ -248,3 +251,4 @@ metrics name 拼接？
 
 
 ### SQL Exporter
+SQL Exporter不是长连接，过期不同会断开。
