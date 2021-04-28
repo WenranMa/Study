@@ -346,6 +346,14 @@ Type values and their behaviors are:
 ### Ingress Controller
 Nginx Ingress Controller
 
+
+Daemonset or Deployment + Serivce
+
+
+
+
+
+
 ### Ingress
 
 
@@ -476,24 +484,29 @@ Templates目录下是yaml文件的模板，遵循Go template语法。
 Statefulset????
 
 命令：
+```
+helm status druid-test
 
-    helm status druid-test
+kubectl describe pod --namespace druid-dev-test spec-pusher-deployment-5cbb7
 
-    kubectl describe pod --namespace druid-dev-test spec-pusher-deployment-5cbb7
+kubectl exec --namespace druid-dev-test spec-pusher-deployment-5cbb7849b7-nxbql ls /sbin
 
-    kubectl exec --namespace druid-dev-test spec-pusher-deployment-5cbb7849b7-nxbql ls /sbin
+kubectl describe ingress --namespace druid-dev-test druid-test-router
 
-    kubectl describe ingress --namespace druid-dev-test druid-test-router
+helm upgrade --namespace "druid-dev-test" "druid-test" --debug ./druid-chart -f ./druid-chart/values.dev.yaml
 
-    helm upgrade --namespace "druid-dev-test" "druid-test" --debug ./druid-chart -f ./druid-chart/values.dev.yaml
+kubectl logs -f --namespace druid-dev-test spec-pusher-deployment-5cbb7849b7-nxbql
 
-    kubectl logs -f --namespace druid-dev-test spec-pusher-deployment-5cbb7849b7-nxbql
+https://kubernetes.io/docs/reference/kubectl/cheatsheet/
 
-    https://kubernetes.io/docs/reference/kubectl/cheatsheet/
+kubectl get statefulset --namespace druid-dev-test druid-test-historical
 
-    kubectl get statefulset --namespace druid-dev-test druid-test-historical
+kubectl exec -it dip-dev-dmoaqs-ui-deploy-7b89759784-79cx9 --namespace aqs-dev ./bin/bash
 
+helm rollback aqs-dev 20
 
+helm history linear-post-action --max 10
+```
 helm 2.9 statefulset delete.....
 
 
@@ -503,3 +516,42 @@ Kubeconfig????
 
 token?
 
+---
+
+# RBAC
+
+Role-based access control (RBAC)
+
+An RBAC Role or ClusterRole contains rules that represent a set of permissions. Role有namespace, ClusterRole没有。里面都是定义一些权限规则。
+
+A role binding grants the permissions defined in a role to a user or set of users. It holds a list of subjects (users, groups, or service accounts). 就是把规则和用户绑在一起。ClusterRoleBinding类似。
+
+
+
+
+
+
+
+
+
+
+# 常见问题
+
+---
+```
+"" is invalid: spec.selector: Invalid value: v1.LabelSelector{MatchLabels:map[string]string{"app":"my-app"}, MatchExpressions:[]v1.LabelSelectorRequirement(nil)}: field is immutable
+```
+这个问题的原因是，两个相同的Deployment（一个已部署，一个将要部署），但它们选择器不同。
+
+--- 
+mountPath结合subPath(也可解决多个configmap挂载同一目录，导致覆盖)作用 
+```
+volumeMounts:
+  - mountPath: /etc/conf/  #conf下会只有volume中的config文件，其他的都会被覆盖。
+    name: test
+
+volumeMounts:
+  - mountPath: /etc/conf/config  
+    subPath: config        #conf原有文件还在，只有config会新增或者被覆盖。
+    name: test
+```
