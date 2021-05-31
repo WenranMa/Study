@@ -27,7 +27,18 @@ An Availability Zone is represented by a Region code followed by a letter identi
 | us-east-1 | US East (N. Virginia) | Not required | No |
 
 
-### Sercurity Group ??
+### Sercurity Group
+A security group acts as a virtual firewall for your EC2 instances to control incoming and outgoing traffic. Inbound rules control the incoming traffic to your instance, and outbound rules control the outgoing traffic from your instance. When you launch an instance, you can specify one or more security groups.
+
+- Security group rules are always permissive; you can't create rules that deny access.
+- Security group rules enable you to filter traffic based on protocols and port numbers.
+- Security groups are stateful—if you send a request from your instance, the response traffic for that request is allowed to flow in regardless of inbound security group rules.
+- When you associate multiple security groups with an instance, the rules from each security group are effectively aggregated to create one set of rules.
+
+
+
+
+
 
 ### Role ??
 
