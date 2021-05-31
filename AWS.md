@@ -70,6 +70,11 @@ ARN:Amazon Resource Name
 cloudwatch
 
 
+### Key pair
+A key pair, consisting of a private key and a public key, is a set of security credentials that you use to prove your identity when connecting to an instance. Amazon EC2 stores the public key, and you store the private key. You use the private key, instead of a password, to securely access your instances.
+
+
+
 
 ## RDS
     关系型数据库的管理平台。
