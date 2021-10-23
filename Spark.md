@@ -306,3 +306,29 @@ if __name__ == "__main__":
 ### 打包
 sbt或者maven可以编译和打包app代码，生成jar文件。
 然后通过spark-submit提交。
+
+### RDD编程
+spark shell会自动创建SparkContext，变量名sc，可以通过sc访问。
+
+#### 生成RDD
+
+- .textFile()，按行读入文件，生成RDD，每一行就是一个RDD元素，是个String类型。
+- .parallelize()方法，传入一个集合，也能生成RDD。
+
+#### RDD操作
+常见Transformation：
+
+- filter(fucn) 筛选。
+- map(func) 将RDD每个元素map到一个func中，得到新的RDD，例如map(x => x + 10)。
+- flatMap(func) 与map类似，但每个元素又映射出多个结果。
+- groupByKey() 分组，并得到key - value list。
+- reduceByKey 分组，并对value list加和。
+
+常见Action：
+
+- count() 返回元素个数。
+- collect() 以数组形式返回数据集所有元素。
+- first() 返回第一个。
+- take(n) 返回前n个。
+- reduce(func) 通过func聚合。
+- foreach(func) 遍历。
