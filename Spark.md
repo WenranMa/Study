@@ -1,45 +1,81 @@
 # Spark
-	
+
 基于内存计算的大数据并行计算框架。计算的中间值存在于内存中。是MapReduce的替代方案。兼容HDFS，Hive等。本身是Scala开发，运行与JVM上。
 
 Hadoop的中间计算结果会落盘（磁盘开销，序列化（结构体到可存储数据，json，string的过程）与反序列化（可存储数据到结构体的过程）开销），导致计算时效差，不适用与交互处理，更适合离线处理。Spark基于内存，计算时间是秒级和分钟级。
-	
-Spark是计算框架，没有存储部分，所以只是对等于Hadoop中的MapReduce。所有Spark取代Hadoop的说法不准确。
-	
-基于DAG的任务调度机制。
 
-Spark拥有多种语言的函数式编程API，提供了除map和reduce之外更多的运算符，这些操作是通过一个称作弹性分布式数据集(resilient distributed datasets, RDDs)的分布式数据框架进行的。
+Spark没有存储部分，所以只是对等于Hadoop中的MapReduce。所有Spark取代Hadoop的说法不准确。
 
-Spark vs Flink
-流式计算方面Flink更优秀，实时性更好，Spark是模拟流式计算，本质还是批处理。
+Spark拥有多种语言的函数式编程API，提供了除map和reduce之外更多的运算符，这些操作是通过一个称作弹性分布式数据集(resilient distributed datasets, RDD)的分布式数据框架进行的。
+
+Spark vs Flink：流式计算方面Flink更优秀，实时性更好，Spark是模拟流式计算，本质还是批处理。
 
 
-弹性分布式数据集RDD（Resillient Distributed Dataset）。数据加载到内存生成RDD，DAG就是RDD的依赖关系。RDD是种编程抽象，高度受限（只读），代表可以跨机器进行分割的只读对象集合。RDD可以从一个继承结构（lineage）重建（因此可以容错），通过并行操作访问，可以读写HDFS或S3这样的分布式存储，可以缓存到worker节点的内存中进行立即重用。由于RDD可以被缓存在内存中，Spark对迭代应用特别有效，因为这些应用中，数据是在整个算法运算过程中都可以被重用。大多数机器学习和最优化算法都是迭代的，使得Spark对数据科学来说是个非常有效的工具。另外，可以通过类似Python REPL的命令行提示符交互式访问。
+## RDD
 
-Spark库本身包含很多应用元素，这些元素可以用到大部分大数据应用中，其中包括对大数据进行类似SQL查询的支持，机器学习和图算法，甚至对实时流数据的支持。
-
-
-## Spark Architecture
-
-Driver Node.
-
-Manager （可以用自带的，Yarn，Mesos）
-
-Worker Node，有Executor进程，又分多个线程，每个线程负责一个任务。
-
-基于事件驱动，代码中对RDD的操作，会转换成DAG。
-
-SparkContext
-DAG Scheduler
-Task Scheduler
+弹性分布式数据集RDD（Resillient Distributed Dataset）。数据加载到内存生成RDD，多个RDD的依赖关系行程DAG。RDD是种编程抽象，高度受限（只读），代表可以跨机器进行分割的只读对象集合。RDD可以从一个继承结构（lineage）重建（因此可以容错），通过并行操作访问，可以读写HDFS或S3这样的分布式存储，可以缓存到worker节点的内存中进行立即重用。由于RDD可以被缓存在内存中，Spark对迭代应用特别有效，因为这些应用中，数据是在整个算法运算过程中都可以被重用。大多数机器学习和最优化算法都是迭代的，使得Spark对数据科学来说是个非常有效的工具。另外，可以通过类似Python REPL的命令行提示符交互式访问。
 
 
+## 核心组件：
+
+![Spark](./img/spark.jpg)
+
+- Spark Core：包含Spark的基本功能；尤其是定义RDD的API、操作以及这两者上的动作。其他Spark的库都是构建在RDD和Spark Core之上的。
+- Spark SQL：提供通过Apache Hive的SQL变体Hive查询语言（HiveQL）与Spark进行交互的API。每个数据库表被当做一个RDD，Spark SQL查询被转换为Spark操作。对熟悉Hive和HiveQL的人，Spark可以拿来就用。
+- Spark Streaming：允许对实时数据流进行处理和控制。很多实时数据库（如Apache Store）可以处理实时数据。Spark Streaming允许程序能够像普通RDD一样处理实时数据。
+- MLlib：一个常用机器学习算法库，算法被实现为对RDD的Spark操作。这个库包含可扩展的学习算法，比如分类、回归等需要对大量数据集进行迭代的操作。之前可选的大数据机器学习库Mahout，将会转到Spark，并在未来实现。
+- GraphX：控制图、并行图操作和计算的一组算法和工具的集合。GraphX扩展了RDD API，包含控制图、创建子图、访问路径上所有顶点的操作。
+
+Spark提供了使用Scala、Java和Python编写的API。
 
 
+## Spark编程
+
+编写Spark应用与在Hadoop上的其他数据流语言类似。代码写入一个惰性求值的驱动程序（driver program）中，通过一个动作（action），驱动代码被分发到集群上，由各个RDD分区上的worker来执行。然后结果会被发送回驱动程序进行聚合或编译。本质上，驱动程序创建一个或多个RDD，调用操作来转换RDD，然后调用动作处理被转换后的RDD。
+
+这些步骤大体如下：
+
+1. 定义一个或多个RDD，可以通过获取存储在磁盘上的数据（HDFS，Cassandra，HBase，Local Disk），并行化内存中的某些集合，转换（transform）一个已存在的RDD，或者，缓存或保存。
+2. 通过传递一个闭包（函数）给RDD上的每个元素来调用RDD上的操作。Spark提供了除了Map和Reduce的80多种高级操作。
+3. 使用结果RDD的动作（action）（如count、collect、save等）。动作将会启动集群上的计算。
+
+当Spark在一个worker上运行闭包时，闭包中用到的所有变量都会被拷贝到节点上，但是由闭包的局部作用域来维护。Spark提供了两种类型的共享变量，这些变量可以按照限定的方式被所有worker访问。广播变量会被分发给所有worker，但是是只读的。累加器这种变量，worker可以使用关联操作来“加”，通常用作计数器。
+
+Spark应用本质上通过转换和动作来控制RDD。
 
 
-	spark shell
+## Spark架构与执行
 
+- Driver Node.
+- Manager（资源调度，可以用自带的，Yarn，Mesos）
+- Worker Node，有Executor进程，又分多个线程，每个线程负责一个任务。
+
+Spark应用作为独立的进程运行，由驱动程序中的**SparkContext**协调。这个context将会连接到一些集群管理者（如YARN），这些管理者分配系统资源。集群上的每个worker由执行者（executor）管理，执行者反过来由SparkContext管理。执行者管理计算、存储，还有每台机器上的缓存。
+
+过程：
+
+RDD -> SparkContext -> DAG图 -> DAG Scheduler -> Task Scheduler -> WorkerNode -> Executor进程
+
+特性：
+
+- 基于事件驱动，代码中对RDD的操作，会转换成DAG。
+- Spark RDD操作分为两大类，transformation和action。
+- 惰性调用机制，也就是转换只会被记录，只有到了action，才开始一整套执行。
+- RDD是粗粒度转换，不能对RDD中一部分进行转换。
+
+重点要记住的是应用代码由Driver发送给Executor，执行者指定context和要运行的任务。执行者与驱动程序通信进行数据分享或者交互。驱动程序是Spark作业的主要参与者，因此需要与集群处于相同的网络。这与Hadoop代码不同，Hadoop中你可以在任意位置提交作业给JobTracker，JobTracker处理集群上的执行。
+
+### 作业切割
+
+一个DAG就是一个作业。
+
+宽依赖窄依赖。Shuffle操作，比如词频统计中不同机器处理不同的单词，涉及到大量的网络分发。
+一个父RDD对应多个子RDD分区，就会有shuffle操作，shuffle操作会写磁盘，因为又等待的过程，此时就是宽依赖。遇到宽依赖会进行任务阶段划分，而遇到窄依赖不会。因为宽依赖无法进行流水线优化（得等），而窄依赖可以优化等待的过程。
+
+优化过程就是反向解析DAG图，如果遇到窄依赖就加到前一个RDD的阶段，遇到宽依赖就断开成新的阶段。
+
+
+## spark shell
 
 spark-shell读取parquet文件。
 ```scala
@@ -59,38 +95,12 @@ p.select($"seller_network_id",$"postal_code",$"date").write.save("/Users/wrma/Do
 ```
 
 
-#### 核心组件：
+## 与Spark交互
 
-![Spark](./img/spark.jpg)
+使用Spark最简单的方式就是使用交互式命令行提示符。
 
-- Spark Core：包含Spark的基本功能；尤其是定义RDD的API、操作以及这两者上的动作。其他Spark的库都是构建在RDD和Spark Core之上的。
-- Spark SQL：提供通过Apache Hive的SQL变体Hive查询语言（HiveQL）与Spark进行交互的API。每个数据库表被当做一个RDD，Spark SQL查询被转换为Spark操作。对熟悉Hive和HiveQL的人，Spark可以拿来就用。
-- Spark Streaming：允许对实时数据流进行处理和控制。很多实时数据库（如Apache Store）可以处理实时数据。Spark Streaming允许程序能够像普通RDD一样处理实时数据。
-- MLlib：一个常用机器学习算法库，算法被实现为对RDD的Spark操作。这个库包含可扩展的学习算法，比如分类、回归等需要对大量数据集进行迭代的操作。之前可选的大数据机器学习库Mahout，将会转到Spark，并在未来实现。
-- GraphX：控制图、并行图操作和计算的一组算法和工具的集合。GraphX扩展了RDD API，包含控制图、创建子图、访问路径上所有顶点的操作。
-
-Spark提供了使用Scala、Java和Python编写的API。
-
-#### Spark编程
-编写Spark应用与之前实现在Hadoop上的其他数据流语言类似。代码写入一个惰性求值的驱动程序（driver program）中，通过一个动作（action），驱动代码被分发到集群上，由各个RDD分区上的worker来执行。然后结果会被发送回驱动程序进行聚合或编译。本质上，驱动程序创建一个或多个RDD，调用操作来转换RDD，然后调用动作处理被转换后的RDD。
-
-这些步骤大体如下：
-
-1. 定义一个或多个RDD，可以通过获取存储在磁盘上的数据（HDFS，Cassandra，HBase，Local Disk），并行化内存中的某些集合，转换（transform）一个已存在的RDD，或者，缓存或保存。
-2. 通过传递一个闭包（函数）给RDD上的每个元素来调用RDD上的操作。Spark提供了除了Map和Reduce的80多种高级操作。
-3. 使用结果RDD的动作（action）（如count、collect、save等）。动作将会启动集群上的计算。
-
-当Spark在一个worker上运行闭包时，闭包中用到的所有变量都会被拷贝到节点上，但是由闭包的局部作用域来维护。Spark提供了两种类型的共享变量，这些变量可以按照限定的方式被所有worker访问。广播变量会被分发给所有worker，但是是只读的。累加器这种变量，worker可以使用关联操作来“加”，通常用作计数器。
-
-Spark应用本质上通过转换和动作来控制RDD。
-
-#### Spark的执行
-简略描述下Spark的执行。本质上，Spark应用作为独立的进程运行，由驱动程序中的SparkContext协调。这个context将会连接到一些集群管理者（如YARN），这些管理者分配系统资源。集群上的每个worker由执行者（executor）管理，执行者反过来由SparkContext管理。执行者管理计算、存储，还有每台机器上的缓存。
-
-重点要记住的是应用代码由驱动程序发送给执行者，执行者指定context和要运行的任务。执行者与驱动程序通信进行数据分享或者交互。驱动程序是Spark作业的主要参与者，因此需要与集群处于相同的网络。这与Hadoop代码不同，Hadoop中你可以在任意位置提交作业给JobTracker，JobTracker处理集群上的执行。
-
-#### 与Spark交互
-使用Spark最简单的方式就是使用交互式命令行提示符。打开PySpark终端，在命令行中打出pyspark。PySpark将会自动使用本地Spark配置创建一个SparkContext。你可以通过sc变量来访问它。我们来创建第一个RDD。
+### PySpark
+Python的交互命令，在命令行中打出pyspark。PySpark将会自动使用本地Spark配置创建一个SparkContext。你可以通过sc变量来访问它。我们来创建第一个RDD。
 ```bash
 >>> text = sc.textFile("BigData.md")
 >>> print(text)
@@ -106,7 +116,7 @@ textFile方法将BigData.md加载到一个RDD命名文本。如果查看了RDD�
 >>> print(words)
 PythonRDD[2] at RDD at PythonRDD.scala:53
 ```
-我们首先导入了add操作符，它是个命名函数，可以作为加法的闭包来使用。我们稍后再使用这个函数。首先我们要做的是把文本拆分为单词。我们创建了一个tokenize函数，参数是文本片段，返回根据空格拆分的单词列表。然后我们通过给flatMap操作符传递tokenize闭包对textRDD进行变换创建了一个wordsRDD。你会发现，words是个PythonRDD，但是执行本应该立即进行。显然，我们还没有把整个莎士比亚数据集拆分为单词列表。
+首先导入add操作符，它是个命名函数，可以作为加法的闭包来使用。我们稍后再使用这个函数。首先我们要做的是把文本拆分为单词。我们创建了一个tokenize函数，参数是文本片段，返回根据空格拆分的单词列表。然后我们通过给flatMap操作符传递tokenize闭包对textRDD进行变换创建了一个wordsRDD。你会发现，words是个PythonRDD，但是执行本应该立即进行。显然，我们还没有把整个莎士比亚数据集拆分为单词列表。
 
 如果你曾使用MapReduce做过Hadoop版的“字数统计”，你应该知道下一步是将每个单词映射到一个键值对，其中键是单词，值是1，然后使用reducer计算每个键的1总数。
 
@@ -130,7 +140,12 @@ _SUCCESS   part-00000 part-00001
 
 注意这些键没有像Hadoop一样被排序（因为Hadoop中Map和Reduce任务中有个必要的打乱和排序阶段）。但是，能保证每个单词在所有文件中只出现一次，因为你使用了reduceByKey操作符。你还可以使用sort操作符确保在写入到磁盘之前所有的键都被排过序。
 
-#### 编写一个Spark应用
+### spark-shell
+
+
+
+
+## 编写一个Spark应用
 编写Spark应用与通过交互式控制台使用Spark类似。API是相同的。首先，你需要访问SparkContext，它已经由pyspark自动加载好了。
 
 使用Spark编写Spark应用的一个基本模板如下：
@@ -278,18 +293,16 @@ if __name__ == "__main__":
 ```bash
 ~$ spark-submit app.py
 ```
-这个Spark作业使用本机作为master，并搜索app.py同目录下的ontime目录下的2个CSV文件。最终结果显示，4月的总延误时间（单位分钟），既有早点的（如果你从美国大陆飞往夏威夷或者阿拉斯加），但对大部分大型航空公司都是延误的。注意，我们在app.py中使用matplotlib直接将结果可视化出来了：
+这个Spark作业使用本机作为master，并搜索app.py同目录下的ontime目录下的2个CSV文件。最终结果显示，4月的总延误时间（单位分钟），既有早点的（如果你从美国大陆飞往夏威夷或者阿拉斯加），但对大部分大型航空公司都是延误的。注意，我们在app.py中使用matplotlib直接将结果可视化出来了。
 
+特别注意下与Spark最直接相关的main函数。首先，加载CSV文件到RDD，然后把split函数映射给它。split函数使用csv模块解析文本的每一行，并返回代表每行的元组。最后，我们将collect动作传给RDD，这个动作把数据以Python列表的形式从RDD传回驱动程序。本例中，airlines.csv是个小型的跳转表（jump table），可以将航空公司代码与全名对应起来。我们将转移表存储为Python字典，然后使用sc.broadcast广播给集群上的每个节点。
 
-这段代码做了什么呢？我们特别注意下与Spark最直接相关的main函数。首先，我们加载CSV文件到RDD，然后把split函数映射给它。split函数使用csv模块解析文本的每一行，并返回代表每行的元组。最后，我们将collect动作传给RDD，这个动作把数据以Python列表的形式从RDD传回驱动程序。本例中，airlines.csv是个小型的跳转表（jump table），可以将航空公司代码与全名对应起来。我们将转移表存储为Python字典，然后使用sc.broadcast广播给集群上的每个节点。
-
-接着，main函数加载了数据量更大的flights.csv（[译者注]作者笔误写成fights.csv，此处更正）。拆分CSV行完成之后，我们将parse函数映射给CSV行，此函数会把日期和时间转成Python的日期和时间，并对浮点数进行合适的类型转换。每行作为一个NamedTuple保存，名为Flight，以便高效简便地使用。
+接着，main函数加载了数据量更大的flights.csv。拆分CSV行完成之后，我们将parse函数映射给CSV行，此函数会把日期和时间转成Python的日期和时间，并对浮点数进行合适的类型转换。每行作为一个NamedTuple保存，名为Flight，以便高效简便地使用。
 
 有了Flight对象的RDD，我们映射一个匿名函数，这个函数将RDD转换为一些列的键值对，其中键是航空公司的名字，值是到达和出发的延误时间总和。使用reduceByKey动作和add操作符可以得到每个航空公司的延误时间总和，然后RDD被传递给驱动程序（数据中航空公司的数目相对较少）。最终延误时间按照升序排列，输出打印到了控制台，并且使用matplotlib进行了可视化。
 
-这个例子稍长，但是希望能演示出集群和驱动程序之间的相互作用（发送数据进行分析，结果取回给驱动程序），以及Python代码在Spark应用中的角色。
+这个例子能演示出集群和驱动程序之间的相互作用（发送数据进行分析，结果取回给驱动程序），以及Python代码在Spark应用中的角色。
 
-#### 结论
-Spark不能解决分布式存储问题（通常Spark从HDFS中获取数据），但是它为分布式计算提供了丰富的函数式编程API。这个框架建立在伸缩分布式数据集（RDD）之上。RDD是种编程抽象，代表被分区的对象集合，允许进行分布式操作。RDD有容错能力（可伸缩的部分），更重要的时，可以存储到节点上的worker内存里进行立即重用。内存存储提供了快速和简单表示的迭代算法，以及实时交互分析。
-
-由于Spark库提供了Python、Scale、Java编写的API，以及内建的机器学习、流数据、图算法、类SQL查询等模块；Spark迅速成为当今最重要的分布式计算框架之一。与YARN结合，Spark提供了增量，而不是替代已存在的Hadoop集群，它将成为未来大数据重要的一部分，为数据科学探索铺设了一条康庄大道。
+### 打包
+sbt或者maven可以编译和打包app代码，生成jar文件。
+然后通过spark-submit提交。
