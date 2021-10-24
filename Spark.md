@@ -1,5 +1,6 @@
 # Spark
 
+## 基础
 基于内存计算的大数据并行计算框架。计算的中间值存在于内存中。是MapReduce的替代方案。兼容HDFS，Hive等。本身是Scala开发，运行与JVM上。
 
 Hadoop的中间计算结果会落盘（磁盘开销，序列化（结构体到可存储数据，json，string的过程）与反序列化（可存储数据到结构体的过程）开销），导致计算时效差，不适用与交互处理，更适合离线处理。Spark基于内存，计算时间是秒级和分钟级。
@@ -10,14 +11,10 @@ Spark拥有多种语言的函数式编程API，提供了除map和reduce之外更
 
 Spark vs Flink：流式计算方面Flink更优秀，实时性更好，Spark是模拟流式计算，本质还是批处理。
 
-
-## RDD
-
+### RDD
 弹性分布式数据集RDD（Resillient Distributed Dataset）。数据加载到内存生成RDD，多个RDD的依赖关系行程DAG。RDD是种编程抽象，高度受限（只读），代表可以跨机器进行分割的只读对象集合。RDD可以从一个继承结构（lineage）重建（因此可以容错），通过并行操作访问，可以读写HDFS或S3这样的分布式存储，可以缓存到worker节点的内存中进行立即重用。由于RDD可以被缓存在内存中，Spark对迭代应用特别有效，因为这些应用中，数据是在整个算法运算过程中都可以被重用。大多数机器学习和最优化算法都是迭代的，使得Spark对数据科学来说是个非常有效的工具。另外，可以通过类似Python REPL的命令行提示符交互式访问。
 
-
-## 核心组件：
-
+### 核心组件：
 ![Spark](./img/spark.jpg)
 
 - Spark Core：包含Spark的基本功能；尤其是定义RDD的API、操作以及这两者上的动作。其他Spark的库都是构建在RDD和Spark Core之上的。
@@ -44,7 +41,7 @@ Spark提供了使用Scala、Java和Python编写的API。
 Spark应用本质上通过转换和动作来控制RDD。
 
 
-## Spark架构与执行
+### Spark架构与执行
 
 - Driver Node.
 - Manager（资源调度，可以用自带的，Yarn，Mesos）
@@ -94,9 +91,6 @@ p.select($"seller_network_id",$"postal_code",$"date").show
 p.select($"seller_network_id",$"postal_code",$"date").write.save("/Users/wrma/Downloads/test.parquet")
 ```
 
-
-## 与Spark交互
-
 使用Spark最简单的方式就是使用交互式命令行提示符。
 
 ### PySpark
@@ -141,8 +135,6 @@ _SUCCESS   part-00000 part-00001
 注意这些键没有像Hadoop一样被排序（因为Hadoop中Map和Reduce任务中有个必要的打乱和排序阶段）。但是，能保证每个单词在所有文件中只出现一次，因为你使用了reduceByKey操作符。你还可以使用sort操作符确保在写入到磁盘之前所有的键都被排过序。
 
 ### spark-shell
-
-
 
 
 ## 编写一个Spark应用
@@ -312,8 +304,8 @@ spark shell会自动创建SparkContext，变量名sc，可以通过sc访问。
 
 #### 生成RDD
 
-- .textFile()，按行读入文件，生成RDD，每一行就是一个RDD元素，是个String类型。
-- .parallelize()方法，传入一个集合，也能生成RDD。
+- textFile()，按行读入文件，生成RDD，每一行就是一个RDD元素，是个String类型。
+- parallelize()方法，传入一个集合，也能生成RDD。
 
 #### RDD操作
 常见Transformation：
@@ -332,3 +324,28 @@ spark shell会自动创建SparkContext，变量名sc，可以通过sc访问。
 - take(n) 返回前n个。
 - reduce(func) 通过func聚合。
 - foreach(func) 遍历。
+
+#### 持久化
+如果遇到连续两次的动作类型操作，每次都会是从头到尾的计算，因为每次遇到action，spark就会生成一个job，所以一个程序可能会有生成多个job。
+为了节省资源，需要缓存：
+
+- persist()方法，可以传入MEMORY_ONLY，MEMORY_AND_DISK。只是标记，只有遇到动作类型操作时才生效。
+- cache() 等同于persist(MEMORY_ONLY)
+
+rdd.cache()之后，遇到第一个动作，会从头到尾计算，遇到第二个，会调用缓存中的RDD，并不会从头到尾再计算。
+
+#### RDD分区
+分区可以增加并行度，减少网络开销？
+
+分区原则：分区数和CPU核数（集群中所有的）尽量一致。
+
+设置分区方法：
+- textFile(path, partitionNum)
+- repartition() 重新分区。
+- 
+
+
+## Spark SQL
+
+Hive，
+Hive on Spark -- Shark
