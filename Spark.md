@@ -347,5 +347,21 @@ rdd.cache()之后，遇到第一个动作，会从头到尾计算，遇到第二
 
 ## Spark SQL
 
-Hive，
-Hive on Spark -- Shark
+Hive：SQL on Hadoop，就是把sql转成MapReduce程序。
+
+Spark也需要一个类似的工具，早期就是Hive on Spark -- Shark，把sql转成Spark程序，照搬Hive而存在问题。后来就有了Spark SQL。
+
+### DataFrame
+可以理解为带有Schema信息的RDD。
+
+Spark SQL融合了结构化和非结构化数据的查询和计算。
+不是所有的数据都是结构化的，非结构化和半结构化的数据可以转换成DataFrame，从而通过Spark SQL进行查询。
+
+
+
+
+
+
+
+
+
