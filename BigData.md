@@ -29,7 +29,6 @@ Jim Gray
 
 ![Hadoop](./img/hadoop.jpg)
 
-
 两大核心：
 
 1.HDFS分布式文件系统，存储。（Hadoop Distributed File System）

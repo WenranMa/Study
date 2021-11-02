@@ -133,6 +133,177 @@ val m = Map(1->"wrma", 2->"xyhu")
 ```
 
 
+## 面向对象
+
+### Class
+```scala
+class Counter{
+	var value = 0	//也可以用val定义不可变量。
+	def increase(step:Int):Unit = {value += step}
+	def current():Int = {value}
+}
+
+// def定义方法
+// Unit表示不返回结果
+// 不用return，方法的最后一个值就是返回值。
+
+val c = new Counter //可以没有小括号
+c.value = 5
+c.increase(3) // 等价于 c increase 5，中缀调用。
+println(c.current) //8，可以省略方法后面小括号。
+```
+
+可见性：成员也有可见范围，默认为public，private，protected。
+
+通过一个成对的方法来实现getter和setter：
+- value 
+- value_=  //也不是赋值操作
+
+方法特点：
+- 方法的参数列表中不能有var，val。
+- 没有参数时，可以省略小括号。
+- 如果小括号在定义时省略，则调用时也不能有小括号。
+- 定义时不省略，调用时省不省略均可。
+- 如果只有一个参数，可以中缀调用。
+- 如果方法体只有一条语句，也可以省略方法体大括号。
+- 如果返回值可以被系统推断，则可以省略`：类型`。
+- 如果返回值是Unit，则可以省略`:Unit=`，但不能省略大括号，这个好像deprecated了。
+
+#### Constructor
+类的定义主体就是一个构造器，叫主构造器。
+
+在类的参数列表中加var或者val修饰的参数，会自动成为类的成员。
+
+```scala
+class Counter(var name:String) //不用大括号就可以定义一个类。
+var c = new Counter("BJO") //构造Counter对象c。
+println(c.name) // getter调用。
+c.name_=("NYO") // setter调用。
+println(c.name) 
+c.name="NYO" // setter中缀调用。
+```
+
+如果参数列表里面没有var，val字段，则只是简单的传参。
+
+辅助构造器：每个辅助构造器的第一条必须是调用前面已经定义的辅助构造器或者主构造器。
+
+```scala
+class Counter {
+	private var value = 0
+	private var name = ""
+	private var step = 1
+	println("Main constructor")
+	
+	def this(name: String){
+		this() // 调用主构造器
+		this.name = name
+		println("First auxiliary constructor")
+	}
+	
+	def this(name: String, step: Int){
+		this(name) //调用第一个辅助构造器
+		this.step = step
+		println("Second auxiliary constructor")
+	}
+	
+	def increase(step: Int):Unit = {value += step}
+}
+```
+
+### Object
+#### singleton 单例对象
+```scala
+object Person { // ojbect关键字，定义单例。
+	private var lastId = 0 //内部字段是静态的。
+	def newId()={
+		lastId += 1
+		lastId
+	}
+}
+
+println(Person.newId()) // 可以直接调用，返回1.
+println(Person.newId()) // 2.
+```
+
+伴生类，伴生对象：在一个scala文件中定义了class A和object A，他们就互为伴生类和伴生对象。可以互相访问内部资源？
+
+没有重名的object就是孤立对象。
+
+```scala
+class P(var name: String){
+	private val id = P.newId()
+	def info():Unit = {
+		printf("name:%s, ID:%d\n", name, id)
+	}
+}
+
+object P{
+	private var lastId = 0
+	def newId()={
+		lastId += 1
+		lastId
+	}
+	
+	def main(args: Array[String]):Unit = {
+		val p1 = new P("wrma")
+		val p2 = new P("xyhu")
+		p1.info()
+		p2.info()
+	}
+}
+
+//scalac ./p.scala
+//scala -classpath . P
+```
+
+#### apply方法
+例如有的语句：`val arrs = Array("WRM", "XYH")`
+
+可以不用new关键字才创建对象。
+
+scala会自动调用Array这个类的伴生对象Array中的apply方法去创建一个Array对象。
+
+apply方法约定：
+- 用括号传递给类实例或者单例对象名一个或多个参数时。
+- Scala会在类或者对象中查找apply方法。
+- 且判断参数列表与传入的参数一致。
+- 用传入的参数调用apply方法。
+
+```scala
+class P(var name:String){
+	def apply(name:String):Unit={
+		printf("Hi %s, apply method called.\n", name)
+	}
+}
+
+var p = new P("z")
+p("x") //will print 'Hi x, apply method called.'
+```
+
+Array的例子就是：
+- 一个class Array
+- 同时有一个伴生对象
+- 类的构造方法以apply方法的形式写在伴生对象里面
+- 写Array("xxx","yyy")时，伴生对象apply会被调用
+- 生成类对象
+
+apply方法的目的就是很好融合了面向对象和函数式编程。例如：
+```scala
+def add=(x:Int, y:Int)=>x+y
+add(4,5) // 9，函数式调用。
+add.apply(4,5) // 9，add也是对象，采用.method方法调用。
+
+//def add(x:Int, y:Int):Int={x+y} 就不行？？？？
+
+```
+
+#### update方法
+
+
+
+
+
+
 
 
 
