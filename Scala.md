@@ -419,7 +419,69 @@ books.get("hive").getOrElse(Book("Unknown", 0)) //返回Book(Unknown, 0)
 定义特质用trait关键字，继承特质可以用with关键字或extends关键字。
 
 ```scala
+trait Flyable {
+	var maxFlyHeight: Int   //abstract field
+	def fly(): Unit      //abstract method
+	def breathe(): Unit = {
+		println("I can breathe.")
+	}
+}
 
+class Bird(flyHeight: Int) extends Flyable{
+	var maxFlyHeight = flyHeight  //override abstract field
+	def fly(): Unit = {
+		printf("I can fly at the height of %d.\n", maxFlyHeight)
+	}  //override abstract method
+}
+
+object Main{
+	def main(args: Array[String]): Unit = {
+		val b = new Bird(100)
+		b.fly()
+		b.breathe()
+	}
+}
+
+// ====
+
+trait Flyable {
+	val maxFlyHeight: Int   //abstract field
+	def fly(): Unit      //abstract method
+	def breathe(): Unit = {
+		println("I can breathe.")
+	}
+}
+
+trait Legs {
+	val legs: Int
+	def move(): Unit = {
+		printf("I can walk with %d legs.\n", legs)
+	}
+}
+
+class Animal(val category: String) {
+	def info(): Unit = {
+		println("I am a " + category + "!")
+	}
+}
+
+class Bird(flyHeight: Int) extends Animal("Bird") with Flyable with Legs {
+	val maxFlyHeight = flyHeight  //override abstract field
+	val legs = 2  //override abstract field
+	def fly(): Unit = {
+		printf("I can fly at the height of %d.\n", maxFlyHeight)
+	}  //override abstract method
+}
+
+object Main{
+	def main(args: Array[String]): Unit = {
+		val b = new Bird(100)
+		b.info()
+		b.fly()
+		b.move()
+		b.breathe()
+	}
+}
 ```
 
 ### 匹配模式
@@ -449,7 +511,54 @@ for(elem <- List(1, 2, 3, 4)){
 case class，在类定义前加case，会自动重载很多method，比如toString，equals等。同时会自动生成类的伴生对象，也就有apply的工厂方法和unapply方法。
 
 ### 包
+package关键字，包可以嵌套。隐式导入，java.lang可以隐去。
 
+
+## 函数式编程
+### 函数概念
+字面量，`val i：Int = 123`，123就是整型字面量，Int是类型，有类型和值两个概念。
+
+同样，函数也有函数类型，函数值，两个概念，使其可以在方法中传来传去。
+
+`def counter(value: Int): Int = {value += 1}` 这样一个函数，它的参数类型和返回类型，共同构成了函数类型`(Int)=>Int`，当参数只有一个时，圆括号可以省略`Int=>Int`。那去掉类型的部分就是函数值`(value)=>{value+=1}`。
+
+有了类型和值，就可以想定义整型一样定义函数。
+
+比如定义整型：`val i: Int = 5`。
+
+则定义函数：`val counter: Int=>Int = {(value)=> value += 1}`。
+
+匿名函数，Lambda表达式。`(num: Int) => num * 2`，这就是一个lambda表达式，相当于直接写函数字面量。
+
+当scala可以推断出函数类型，可以不写。例如`val d = (num: Int) => num * 2`，系统可以自动推断函数类型是`Int=>Int`。
+
+有更简化的写法，引入`_`，它可以表示一个参数出现一次。比如`val counter = (_: Int) + 1`，等价于`val counter = (x: Int) => x + 1`
+
+`val add = (_: Int) + (_: Int)`等价于`val add = (a: Int, b: Int) => a + b`。
+
+```scala
+val m1 = List(1, 2, 3)
+val m2 = m1.map(_*2) // m2 = list(2, 4, 6)
+```
+
+### 高阶函数
+函数的变量仍是函数。
+```scala
+def sum(f: Int => Int, a: Int, b: Int): Int = {
+	if(a > b) 0 else f(a) + sum(f, a + 1, b)
+}
+
+sum(x=>x, 1, 5) 	//等于 1 + 2 + 3 + 4 + 5
+sum(x=>x * x, 1, 5)	//等于 1^2 + 2^2 + 3^2 + 4^2 + 5^2
+sum(powerOfTwo, 1, 5) //powerOfTwo提前定义好
+```
+
+### 容器操作
+```scala
+val list = List(1, 2, 3)
+val f = (i: Int) => println(i)
+list.foreach(f)
+```
 
 
 
