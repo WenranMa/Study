@@ -89,7 +89,6 @@ print(t._3)
 ```
 
 ### 容器
-
 scala.collection库，定义了可变容器和不可变容器的一些通用操作。
 是scala.collection.mutable和scala.collection.immutable两个库的超类（特质Trait）。
 
@@ -298,6 +297,160 @@ add.apply(4,5) // 9，add也是对象，采用.method方法调用。
 ```
 
 #### update方法
+update方法约定：
+- 当对带有括号并包括一到若干参数的对象进行赋值时。
+- 编译器将调用对象的update方法。
+
+```scala
+val s = new Array[String](3)
+s(0) = "wrma" // 与s.update(0, "wrma")等价的。
+```
+
+#### unapply方法
+反向解构的过程。apply是通过参数传递构建对象，unapply是已经有了对象，提取出参数。
+
+```scala
+class Car(var brand: String, var price: Int) {
+	def info():Unit = {
+		printf("Car brand is %s, price is %d.\n", brand, price)
+	}
+}
+
+object Car{
+	def apply(brand: String, price: Int) = {
+		println("apply method called ...")
+		new Car(brand, price)
+	}
+	def unapply(c: Car): Option[(String, Int)] = {
+		println("unapply method called ...")
+		Some((c.brand, c.price))
+	}
+}
+
+object Main{
+	def main(args: Array[String]): Unit = {
+		var Car(b,p) = Car("BMW", 50000)  //这句同时调用了apply和unapply方法。
+		println("Car brand is " + b + ", and price is " + p + ".")
+	}
+}
+//Option和Some暂时未知。
+```
+
+### 继承
+抽象类，一个类中包含没有被实现的成员，就是抽象类，必须用abstract做修饰。
+
+- 需要使用abstract关键字定义抽象类。
+- 抽象方法不需要abstract，不定义即可。
+- 字段没有初始化，就是抽象字段，必须给类型声明。
+- extends关键字继承，override关键字重载。
+- override可选，父类本身抽象的字段，子类重载可以不加override。
+- 如果父类中成员本身被实现或赋值，子类重载必须加override。
+- 只能重载val类型，因为var类型本身是变量，不存在重载。
+
+```scala
+abstract class Car {
+	val carBrand: String //字段没有初始化，就是抽象字段。
+	def info(): Unit //抽象方法
+	def greeting(): Unit = {
+		println("Welcome ~ ~ ~ ~")
+	}
+}
+
+class BMWCar extends Car {
+	override val carBrand = "BMW"
+	def info(): Unit = {
+		println("BMW Car ...")
+	}
+	override def greeting(): Unit = {
+		println("Welcome BMW ~ ~ ~ ~")
+	}
+}
+
+class BYDCar extends Car {
+	override val carBrand = "BYD"
+	def info(): Unit = {
+		println("BYD Car ...")
+	}
+	override def greeting(): Unit = {
+		println("Welcome BYD ~ ~ ~ ~")
+	}
+}
+
+object Main {
+	def main(args: Array[String]): Unit = {
+		val c1 = new BMWCar()
+		var c2 = new BYDCar()
+		c1.greeting()
+		c2.greeting()
+	}
+}
+```
+
+类层次：
+- 最高层是Any类
+- 下面两个AnyVal，AnyRef
+- AnyVal是对应的基础类型，Int，Double等，但不包括String（java过来的）。
+- AnyVal类型存在寄存器中，不能用new实例化。
+- AnyRef引用类型，对应其他所有类，在堆内存中。
+- Null是AnyRef的子类，为了兼容java。
+- Nothing是所有类的子类。
+- Option类，用于取代Null，有个Some子类，只要返回是Option类型，都会封装成Some对象。
+- Option中还有个None对象，没有返回值就返回None，有就是Some。
+- Some对象的get方法，返回被包装的对象。
+- getOrElse方法，有就返回，没有就返回else中封装的对象。
+
+case class会自动封装apply方法。
+
+```scala
+case class Book(val name: String, val price: Int)
+val books = Map("spark" -> Book("Spark", 20))
+books.get("spark") //返回 Option[Book] = Some(Book(Spark, 20))
+books.get("hive") //返回 Option[Book] = None
+books.get("spark").get //返回Book = Book(Spark, 20)
+books.get("hive").get //抛出异常
+books.get("hive").getOrElse(Book("Unknown", 0)) //返回Book(Unknown, 0)
+```
+
+### 特质Trait
+类似java中的接口但有区别。Trait可以定义抽象方法，也可以提供具体方法实现。
+
+一个类只能继承一个父类，但却可以混入（mixin）多个Trait。简介实现多重继承。
+
+定义特质用trait关键字，继承特质可以用with关键字或extends关键字。
+
+```scala
+
+```
+
+### 匹配模式
+match case语句，类似其他语言的swith语句。
+```scala
+for(elem <- List(6, 9, 3.14, "spark", "hive")){
+	val str = elem match{
+		case i: Int => i + " is an int value."
+		case d: Double => d + " is an double value."
+		case s: String => s + " is an string value."
+		case "spark" => "spark in this list."
+		case _ => "unexpected " + elem
+	}
+	println(str)
+}
+//可以匹配值，也可以匹配类型。
+//case _ 表示进来什么值都可以。
+
+for(elem <- List(1, 2, 3, 4)){
+	elem match{
+		case _ if(elem % 2 == 0) => println(elem + " is even.")
+		case _ => println(elem + " is odd.")
+	}
+}
+```
+
+case class，在类定义前加case，会自动重载很多method，比如toString，equals等。同时会自动生成类的伴生对象，也就有apply的工厂方法和unapply方法。
+
+### 包
+
+
 
 
 
