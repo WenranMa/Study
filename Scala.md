@@ -554,18 +554,86 @@ sum(powerOfTwo, 1, 5) //powerOfTwo提前定义好
 ```
 
 ### 容器操作
+foreach遍历操作。
 ```scala
 val list = List(1, 2, 3)
 val f = (i: Int) => println(i)
-list.foreach(f)
+list.foreach(f) //打印1，2，3
+
+val o = Map("BJO"->"Beijing office", "NYO"->"New york office")
+o foreach {kv => println(kv._1 + ":" + kv._2)}
+//中置调用，打印：
+//BJO:Beijing office
+//NYO:New york office
+
+o foreach {x => x match{case(k,v)=>println(k+":"+v)}}
+//unapply方法调用
+//一样的结果
 ```
 
+map映射操作。
+```scala
+val b = List("wrma", "xyhu")
+b.map(s => s.toUpperCase) 	//List("WRMA", "XYHU")
+b.map(s => s.length) 	//List(4,4)
+```
 
+flatMap映射，一对多的map。
+```scala
+val b = List("wrma", "xyhu")
+b flatMap {s => s.toList}
+//得到 List[Char](w,r,m,a,x,y,h,u)
+```
 
+filter过滤操作。
+```scala
+val o = Map("BJO"->"Beijing office", "NYO"->"New york office")
+val b = o filter {kv=> kv._2 contains "Beijing"}
+// b = Map(BJO -> Beijing office)
+```
 
+reduce操作。
+```scala
+val l = List(1,2,3,4,5)
+l.reduce(_ + _) //累加操作，使用占位符，相当于(a,b)=> a + b
+//累加操作，15
+```
+reduceLeft，reduceRight方向归约操作。
+```scala
+val l = List(1,2,3,4,5)
+l.reduceLeft(_-_) //减法操作，1 - 2 - 3 - 4 - 5 = -13
+l.reduceRight(_-_) // (1-(2-(3-(4-5)))) = 3
+```
 
+fold方法，给归约初始值。同样也有foldLeft，foldRight。
+```scala
+val l = List(1, 2, 3, 4, 5)
+l.fold(10)(_*_)	//相当于 10 * 1 * 2 * 3 * 4 * 5 = 1200
 
+(l foldLeft 10)(_-_)	// 10 - 1 - 2 - 3 - 4 - 5 = -5
+(l foldRight 10)(_-_)	// (1-(2-(3-(4-(5-10))))) = -7
+```
 
+word count简单实例：
+```scala
+import java.io.File
+import scala.io.Source
+import collection.mutable.Map
 
+object WordCount{
+	def main(args: Array[String]):Unit = {
+		val f = new File("./hello/src/main/scala/")
+		val files = f.listFiles
+		println(files.length)
+		val res = Map.empty[String,Int]
 
+		for(file <- files){
+			val data = Source.fromFile(file)
+			val strs = data.getLines().flatMap{s => s.split(" ")}
+			strs foreach {word => if(res.contains(word)) res(word) += 1 else res(word) = 1}
+		}
+		res foreach {case(k, v) => println(s"$k: $v")}
+	}
+}
+```
 
