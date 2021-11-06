@@ -326,8 +326,7 @@ spark shell会自动创建SparkContext，变量名sc，可以通过sc访问。
 - foreach(func) 遍历。
 
 #### 持久化
-如果遇到连续两次的动作类型操作，每次都会是从头到尾的计算，因为每次遇到action，spark就会生成一个job，所以一个程序可能会有生成多个job。
-为了节省资源，需要缓存：
+如果遇到连续两次的动作类型操作，每次都会是从头到尾的计算，因为每次遇到action，spark就会生成一个job，所以一个程序可能会有生成多个job。为了节省资源，需要缓存：
 
 - persist()方法，可以传入MEMORY_ONLY，MEMORY_AND_DISK。只是标记，只有遇到动作类型操作时才生效。
 - cache() 等同于persist(MEMORY_ONLY)
@@ -341,8 +340,22 @@ rdd.cache()之后，遇到第一个动作，会从头到尾计算，遇到第二
 
 设置分区方法：
 - textFile(path, partitionNum)
+- parallelize() 方法进行分区。
 - repartition() 重新分区。
-- 
+
+自定义分区：定义类，继承org.apache.spark.Partitioner。
+- 实现numPartitions:Int
+- getPartition(key: Any): Int 返回该key的分区编号。
+- equals()
+
+只支持键值对。
+
+map((_,1)) 	//组成map操作。
+map(_._1)	//还原操作。
+
+
+
+
 
 
 ## Spark SQL
