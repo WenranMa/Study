@@ -15,7 +15,7 @@ Spark vs Flink：流式计算方面Flink更优秀，实时性更好，Spark是�
 弹性分布式数据集RDD（Resillient Distributed Dataset）。数据加载到内存生成RDD，多个RDD的依赖关系行程DAG。RDD是种编程抽象，高度受限（只读），代表可以跨机器进行分割的只读对象集合。RDD可以从一个继承结构（lineage）重建（因此可以容错），通过并行操作访问，可以读写HDFS或S3这样的分布式存储，可以缓存到worker节点的内存中进行立即重用。由于RDD可以被缓存在内存中，Spark对迭代应用特别有效，因为这些应用中，数据是在整个算法运算过程中都可以被重用。大多数机器学习和最优化算法都是迭代的，使得Spark对数据科学来说是个非常有效的工具。另外，可以通过类似Python REPL的命令行提示符交互式访问。
 
 ### 核心组件：
-![Spark](./img/spark.jpg)
+![Spark](./img/spark.JPG?raw=true)
 
 - Spark Core：包含Spark的基本功能；尤其是定义RDD的API、操作以及这两者上的动作。其他Spark的库都是构建在RDD和Spark Core之上的。
 - Spark SQL：提供通过Apache Hive的SQL变体Hive查询语言（HiveQL）与Spark进行交互的API。每个数据库表被当做一个RDD，Spark SQL查询被转换为Spark操作。对熟悉Hive和HiveQL的人，Spark可以拿来就用。
