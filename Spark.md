@@ -350,8 +350,171 @@ rdd.cache()之后，遇到第一个动作，会从头到尾计算，遇到第二
 
 只支持键值对。
 
-map((_,1)) 	//组成map操作。
-map(_._1)	//还原操作。
+- map((_,1)) 	//组成map操作。
+- map(_._1)	//还原操作。
+
+
+### 键值对RDD
+```java
+//spark-shell
+//way no.1
+val lines = sc.textFile("file:///Users/wrma/Working/Scala/car.scala")
+val pairRDD = lines.flatMap(line => line.split(" ")).map(word => (word, 1)) //键值对RDD
+pairRDD.foreach(println)
+
+//way no.2
+scala> val l = List("wrma", "xyhu")
+//l: List[String] = List(wrma, xyhu)
+
+scala> val rdd = sc.parallelize(l)
+//rdd: org.apache.spark.rdd.RDD[String] = ParallelCollectionRDD[4] at parallelize at <console>:26
+
+scala> val pairRDD = rdd.map(word => (word,1))
+//pairRDD: org.apache.spark.rdd.RDD[(String, Int)] = MapPartitionsRDD[5] at map at <console>:25
+
+scala> pairRDD foreach println
+//(wrma,1)
+//(xyhu,1)
+```
+
+常见操作：reduceByKey(func)，groupByKey()，keys，values，sortByKey()，sortBy()，mapValues()
+```java
+scala> val w = Array("one","two","two","three","three","three")
+//w: Array[String] = Array(one, two, two, three, three, three)
+
+scala> val wRDD = sc.parallelize(w).map(word => (word, 1))
+//wRDD: org.apache.spark.rdd.RDD[(String, Int)] = MapPartitionsRDD[7] at map at <console>:26
+
+scala> wRDD.foreach(println)
+// (three,1)
+// (three,1)
+// (two,1)
+// (three,1)
+// (two,1)
+// (one,1)
+
+scala> val r = wRDD.reduceByKey(_ + _)
+//r: org.apache.spark.rdd.RDD[(String, Int)] = ShuffledRDD[8] at reduceByKey at <console>:25
+
+scala> r.foreach(println)
+// (one,1)
+// (two,2)
+// (three,3)
+
+scala> val r1 = wRDD.reduceByKey((a,b)=> a + b)
+//r1: org.apache.spark.rdd.RDD[(String, Int)] = ShuffledRDD[9] at reduceByKey at <console>:25
+
+scala> r1.foreach(println)
+// (one,1)
+// (two,2)
+// (three,3)
+
+scala> val g = wRDD.groupByKey()
+//g: org.apache.spark.rdd.RDD[(String, Iterable[Int])] = ShuffledRDD[10] at groupByKey at <console>:25
+
+scala> g.foreach(println)
+// (one,CompactBuffer(1))
+// (three,CompactBuffer(1, 1, 1))
+// (two,CompactBuffer(1, 1))
+
+scala> val g1 = wRDD.groupByKey().map(t => (t._1,t._2.sum))
+//g1: org.apache.spark.rdd.RDD[(String, Int)] = MapPartitionsRDD[12] at map at <console>:25
+
+scala> g1.foreach(println)
+// (one,1)
+// (two,2)
+// (three,3)
+
+scala> g1.keys.foreach(println)	//不能加括号keys()
+// two
+// one
+// three
+
+scala> g1.values.foreach(println)
+// 1
+// 2
+// 3
+
+scala> g1.sortByKey().foreach(println) //not sure about this ???
+// (two,2)
+// (three,3)
+// (one,1)
+
+scala> g1.sortByKey(false).foreach(println)
+// (one,1)
+// (two,2)
+// (three,3)
+
+scala> g1.sortBy(_._2).foreach(println)
+// (one,1)
+// (two,2)
+// (three,3)
+
+scala> g1.mapValues(x=>x+1).foreach(println)	//只改变value.
+// (one,2)
+// (two,3)
+// (three,4)
+```
+
+join()操作：
+```java
+scala> val r1 = sc.parallelize(Array(("spark",1),("spark",2)))
+scala> val r2 = sc.parallelize(Array(("spark","good"),("spark","perfect")))
+scala> r1.join(r2).foreach(println)
+// (spark,(1,good))
+// (spark,(1,perfect))
+// (spark,(2,good))
+// (spark,(2,perfect))
+```
+
+例子：求书的日平均销量。key是书名，value是销量，每一条是一天。
+```java
+scala> val books = sc.parallelize(Array(("spark",2), ("hadoop", 3), ("spark", 6), ("hadoop",11)))
+scala> books.mapValues(x=>(x,1)).reduceByKey((x,y) => (x._1 + y._1, x._2 + y._2)).mapValues(x => (x._1 / x._2)).collect()
+//res5: Array[(String, Int)] = Array((hadoop,7), (spark,4))
+scala> res5.foreach(println)
+//(hadoop,7)
+//(spark,4)
+```
+
+### 数据读写
+文件：
+```java
+val t = sc.textFile("file:///Users/wrma/Working/Scala/car.scala")
+t.saveAsTextFile("file:///Users/wrma/Working/Scala/writeBack")	//指定目录，而且只能是目录。目录下会有 _SUCCESS文件和具体的part文件（分区文件）。
+
+//再次读的时候只要指定目录即可。
+val t1 = sc.textFile("file:///Users/wrma/Working/Scala/writeBack")
+```
+
+HDFS文件：
+```java
+val t = sc.textFile("hdfs://")
+t.saveAsTextFile("hdfs:// ... /writeBack")	//指定目录，而且只能是目录。目录下会有 _SUCCESS文件和具体的part文件（分区文件）。
+
+//再次读的时候只要指定目录即可。
+val t1 = sc.textFile("hdfs:// ... /writeBack")
+```
+
+JSON文件：
+???
+
+
+读写HBASE：
+
+HBASE是以HDFS做基础的。
+
+稀疏 多维度 排序 映射表
+
+有四个概念：行键，列族，列限定符，时间戳。
+
+HBASE可以支持数十亿行，百万列，一个列族可以有多个列，列又叫列限定符。有单元格的概念，可以通过行键，时间戳，列族，列限定符确定一个单元格，即四维定位，HBASE的读写都是按单元格来的。
+
+时间戳是因为HDFS只允许一次写入，多次读取，所以单元格不能被改写，只能生成新的版本，为了获取新版本，需要时间戳。
+
+时间戳是自动生成的，取数据也是取最新版本。
+
+分区是先按照行切，再按照列族切。
 
 
 
