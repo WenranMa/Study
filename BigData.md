@@ -27,34 +27,63 @@ Jim Gray
 ## Hadoop
 开源大数据框架和分布式计算系统。
 
-![Hadoop](./img/hadoop.jpg)
+![Hadoop](./img/hadoop.JPG)
 
 两大核心：
 
-1.HDFS分布式文件系统，存储。（Hadoop Distributed File System）
+### HDFS
+HDFS分布式文件系统，存储。（Hadoop Distributed File System）
 
-	1. 数据块: 128MB 备份x3
-	2. NameNode: 主，管理命名空间，存放文件元数据，维护所有文件与数据块的映射，记录各个块所在数据节点信息。
-	3. DataNode：从，存储数据块，向namenode更新数据块列表。
+问题：
+- 不适合大量小文件存储。
+- 不适合并发写入。
+- 不支持随机修改，只追加。
+- 不支持随机读等低延时访问。
 
-	有容错，恢复，支持流式写入，一次写入，多次读取。
-	不适合大量小文件存储，不适合并发写入，不支持随机修改，不支持随机读等低延时访问。
+概念：
+- 块，每个块都是128MB，很大，方便寻址。支持大规模数据存储，如果不分块，则一个大文件最多一个机器的容量，适合备份。
+- 数据块太小内存压力大，太大加载慢。
+- NameNode: 主，管理命名空间，存放文件元数据，维护所有文件与数据块的映射，也就是数据目录。同时记录各个块所在数据节点信息。
+- DataNode：从，存储数据块，向namenode更新数据块列表。
+- FsImage：保存系统文件树。
+- EditLog：记录对数据的创建，删除等操作。
+- 启动时，系统会读取FsImage以及EditLog，两者合并成最新的FsImage，并且再创建一个空的EditLog。
+- SecondaryNameNode，解决EditLog不断增大的问题。会定期拉FsImage和Editlog到本地，合并后再推给NameNode。
 
-	数据块大小？太小内存压力大，太大加载慢？？
+1.0版本局限性：
+- NameNode文件目录存在内存中，所以可以容纳对象有限。
+- 整个系统的吞吐量，都受限于单个NameNode。
+- 隔离问题。一个单点，APP无法隔离。
+- 单点故障。
 
-	主节点挂了？Hadoop2.0支持HA，有备用节点。
+存储原理：
+- 冗余数据保存，默认数据存三份。
+- 可以加快数据传输速度（并行）。
+- 容易检查数据错误（副本对比）。
+- 保证数据可靠，自动保证副本数量。
 
 HDFS写流程：
-
-	客户端向NameNode发请求。
-	分块写入DataNode，DataNode自动备份。
-	DataNode通知NameNode，NameNode通知客户端。
+- 客户端向NameNode发请求。
+- 分块写入DataNode，DataNode自动备份。备份会被写到不同的机架上。
+- DataNode通知NameNode，NameNode通知客户端。
 
 HDFS读流程：
+- 客户端向NameNode发请求。
+- NameNode找到最近DataNode，客户端的机架ID和DataNode机架ID有API可以查询，如果在同一机架内，则最近，如果没有就随机。
+- 客户端从该DataNode下载文件。
 
-	客户端向NameNode发请求。
-	NameNode找到最近DataNode。
-	客户端从该DataNode下载文件。
+错误处理：
+- 主节点NameNode挂了，2.0支持HA，有第二NameNode可以提供恢复。
+- DataNode挂了，DataNode定期发送心跳数据给NameNode。NameNode有DataNode的列表，一旦DataNode无心跳，则把该机器的数据（其他机器上面有）复制一份到另一台机器上。
+- 数据本身问题，生成数据块的时候会有校验码，对比校验码可以确定数据是否出错。
+
+
+
+支持流式写入，一次写入，多次读取。
+
+
+
+
 
 2.MapReduce分布式计算
 
@@ -65,6 +94,12 @@ HDFS读流程：
 	
 	Map存在衔接开销，Reduce方法必须等所有的Map方法完成之后才能开始。
 
+---
+
+
+
+
+---
 
 ## Hadoop YARN
 YARN的全称是Yet Another Resource Negotiator，另一种资源调度者。从Apache Hadoop 2.0开始，Hadoop包含YARN。
@@ -177,14 +212,18 @@ yarn.scheduler.maximum-allocation-vcores
 单个任务可以申请最多虚拟cpu个数，默认是32.
 
 
+---
 
 
 ---
 
 
 ## Hbase
-	分布式数据库，利用HDFS作为文件存储系统，支持MapReduce程序读取数据。
-	支持存储非结构化和半结构化数据？？
+
+分布式数据库，利用HDFS作为文件存储系统，支持MapReduce程序读取数据。
+
+支持存储非结构化和半结构化数据。
+
 
 	特点：
 		海量数据存储（单表百亿行x百万列），准实时查询。	面向列，不同于关系型数据块，Hbase列可以动态增加。对列进行单独操作。
@@ -224,17 +263,18 @@ yarn.scheduler.maximum-allocation-vcores
 ---
 
 ## Hive
-	数据仓库，将多个数据源的数据经过ETL之后，按照一定主题集成起来提供决策支持和联机分析应用的数据环境。
-	ETL = Extract, Transform, Load.
-
-	Hive就是基于Hadoop的数仓工具，提供类SQL支持。
-	以MapReduce作计算引擎，HDFS作为存储系统。
 	
-	Hive不负责存储，数据实体不在hive，Hive的库和表是对HDFS上数据的映射。这些映射叫Hive的元数据（metadata），存在外部关系型数据块上。
-	 hive metastore
+数据仓库，将多个数据源的数据经过ETL之后，按照一定主题集成起来提供决策支持和联机分析应用的数据环境。
+
+ETL = Extract, Transform, Load.
+
+Hive就是基于Hadoop的数仓工具，提供类SQL支持。它以MapReduce作计算引擎，HDFS作为存储系统。
+
+Hive不负责存储，数据实体不在Hive，Hive的库和表是对HDFS上数据的映射。这些映射叫Hive的元数据（metadata），存在外部关系型数据块上，即Hive metastore
+
+Hive语句的执行：将HQL转换成MapReduce任务。MR要频繁进行IO读写，所以Hive的查询速度不快，所以与Presto查询引擎结合。
 
 
-	Hive语句的执行：将HQL转换成MapReduce任务。MR要频繁进行IO读写，所以Hive的查询速度不快，所以与presto查询引擎结合。
 
 hive server2?  类似presto
 
