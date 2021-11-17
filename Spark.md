@@ -518,9 +518,6 @@ HBASE可以支持数十亿行，百万列，一个列族可以有多个列，列
 
 
 
-
-
-
 ## Spark SQL
 
 Hive：SQL on Hadoop，就是把sql转成MapReduce程序。
@@ -533,8 +530,90 @@ Spark也需要一个类似的工具，早期就是Hive on Spark -- Shark，把sq
 Spark SQL融合了结构化和非结构化数据的查询和计算。
 不是所有的数据都是结构化的，非结构化和半结构化的数据可以转换成DataFrame，从而通过Spark SQL进行查询。
 
+DataFrame 可以通过SparkSession创建。
 
+```java
+import org.apach.spark.sql.SparkSession
+val s = SparkSession.builder().getOrCreate()
+```
 
+spark-shell启动后会自动创建spark，sc两个对象，分别是SparkSession和SparkContext的sc。
+
+编程中必须手动建立。
+
+json，parquet，csv都可以加载生成DataFrame。
+
+- spark.read.json(...) //...表示路径
+- spark.read.parquet(...)
+- spark.read.csv(...)
+
+#### DataFrame操作
+
+```java
+scala> val df = spark.read.json("file:///Users/wrma/Working/Java/spark/examples/src/main/resources/people.json")
+//df: org.apache.spark.sql.DataFrame = [age: bigint, name: string]
+
+scala> df.show()
+// +----+-------+
+// | age|   name|
+// +----+-------+
+// |null|Michael|
+// |  30|   Andy|
+// |  19| Justin|
+// +----+-------+
+
+scala> df.select("name").show()
+// +-------+
+// |   name|
+// +-------+
+// |Michael|
+// |   Andy|
+// | Justin|
+// +-------+
+
+scala> df.select("name").write.format("csv").save("file:///Users/wrma/Working/Scala/name")
+// 写文件，只要给出路径地址，不要写文件名，路径下会存储_SUCCESS和文件本身。
+
+scala> df.printSchema
+// root
+//  |-- age: long (nullable = true)
+//  |-- name: string (nullable = true)
+
+scala> df.filter(df("age")> 20).show
+// +---+----+
+// |age|name|
+// +---+----+
+// | 30|Andy|
+// +---+----+
+
+scala> df.groupBy("age").count.show
+// +----+-----+
+// | age|count|
+// +----+-----+
+// |  19|    1|
+// |null|    1|
+// |  30|    1|
+// +----+-----+
+
+scala> df.sort(df("age").desc).show
+// +----+-------+
+// | age|   name|
+// +----+-------+
+// |  30|   Andy|
+// |  19| Justin|
+// |null|Michael|
+// +----+-------+
+
+scala> df.select(df("name").as("username"), df("age")+ 1).show
+// +--------+---------+
+// |username|(age + 1)|
+// +--------+---------+
+// | Michael|     null|
+// |    Andy|       31|
+// |  Justin|       20|
+// +--------+---------+
+
+```
 
 
 
