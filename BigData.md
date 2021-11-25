@@ -52,11 +52,7 @@ HDFS分布式文件系统，存储。（Hadoop Distributed File System）
 - 启动时，系统会读取FsImage以及EditLog，两者合并成最新的FsImage，并且再创建一个空的EditLog。
 - SecondaryNameNode，解决EditLog不断增大的问题。会定期拉FsImage和Editlog到本地，合并后再推给NameNode。
 
-1.0版本局限性：
-- NameNode文件目录存在内存中，所以可以容纳对象有限。
-- 整个系统的吞吐量，都受限于单个NameNode。
-- 隔离问题。一个单点，APP无法隔离。
-- 单点故障。
+
 
 存储原理：
 - 冗余数据保存，默认数据存三份。
@@ -133,75 +129,87 @@ MapReduce依赖磁盘读写，Map存在衔接开销，Reduce方法必须等所�
 
 
 
----
+## Hadoop2.0 & YARNHadoop 2.0
 
-## Hadoop YARN
-YARN的全称是Yet Another Resource Negotiator，另一种资源调度者。从Apache Hadoop 2.0开始，Hadoop包含YARN。
+HDFS1.0版本局限性：
+- NameNode文件目录存在内存中，所以可以容纳对象有限。
+- 整个系统的吞吐量，都受限于单个NameNode。
+- 隔离问题。一个单点，APP无法隔离。
+- 单点故障。
 
-### Hadoop 1.x与Hadoop 2.x
-先回头看一下Hadoop1.x对MapReduce job的调度管理方式。在Hadoop 1.x版本中，MapReduce(也称MRv1)既要负责资源管理又要负责作业处理。MapReduce（MRv1）运行时环境由（一个）JobTracker和（若干个）TaskTracker两类服务组成。其中，JobTracker负责资源管理和所有作业的控制，而TaskTracker负责接收来自JobTracker的命令并执行它。该框架在扩展性、容错性和多框架支持等方面存在不足，这也促使了MRv2的产生。
+Hadoop2.0 HDFS的改进：
 
-在Apache Hadoop 2.x中，我们将MapReduce(MRv1)分解为Apache Hadoop YARN，一种通用的分布式应用程序管理框架，而Apache Hadoop MapReduce（又称MRv2）仍然是一个纯粹的分布式计算框架。
-MRv2是在运行于资源管理框架YARN之上的计算框架MapReduce。它的运行时环境不再由JobTracker和TaskTracker等服务组成，而是变为通用资源管理系统YARN和作业控制进程ApplicationMaster。简言之，MRv1仅是一个独立的离线计算框架，而MRv2则是运行于YARN之上的MapReduce。
+HDFS支持HA（High Availability）。
+- 两个NameNode，一个active，一个standby。通过zookeeper保证只有一个活跃NameNode。
+- 两个NameNode通过共享存储系统同步editlog。
+- 映射表的信息则是通过DataNode同时向两个NameNode汇报。
 
-YARN是Hadoop 2.x中的资源管理系统，它是一个通用的资源管理模块，可为各类应用程序进行资源管理和调度。YARN不仅限于MapReduce一种框架使用，也可以供其他框架使用，比如Hive、Spark、Storm等。由于YARN的通用性，下一代MapReduce的核心已经从简单的支持单一应用的计算框架MapReduce转移到通用的资源管理系统YARN。
+HDFS Federation，管理多个命名空间。
+- 包含多个NameNode，相互独立，每个NameNode有自己的namespace。
+- 共享底层的DataNode。
+- 解决集群扩展性问题。
+- 性能高（吞吐率高）。
+- 隔离性好。
+
+HDFS Federation + HA共同解决单点故障和性能，隔离及扩展问题。
+
+MapReduce1.0版本局限性：
+- 单点故障。
+- 一个JobTracker任务过重。
+- 容易出现内存溢出，只看任务数，不看具体任务消耗资源。
+- 资源划分不合理，map slot和reduce slot不通用。
+- 既要做计算，又要做资源管理。
+
+Hadoop2.0 MapReduce的改进：
+
+在Apache Hadoop 2.x中，MapReduce(MRv1)分解为YARN，一种通用的分布式应用程序管理框架，而Apache Hadoop MapReduce（又称MRv2）仍然是一个纯粹的分布式计算框架。MRv2是在运行于资源管理框架YARN之上的计算框架MapReduce。
+
+YARN的全称是Yet Another Resource Negotiator，另一种资源调度者。从Apache Hadoop 2.0开始，Hadoop包含YARN。可为各类应用程序进行资源管理和调度。YARN不仅限于MapReduce一种框架使用，也可以供其他框架使用，比如Hive、Spark、Storm等。由于YARN的通用性，下一代MapReduce的核心已经从简单的支持单一应用的计算框架MapReduce转移到通用的资源管理系统YARN。
 
 ### YARN架构
-YARN的架构还是经典的主从（master/slave）结构，如下图所示。大体上看，YARN服务由一个ResourceManager（RM）和多个NodeManager（NM）构成，ResourceManager为主节点（master），NodeManager为从节点（slave）。
+YARN的架构还是经典的主从（master/slave）结构，YARN服务由一个ResourceManager（RM）和多个NodeManager（NM）构成，ResourceManager为主节点（master），NodeManager为从节点（slave）。
 
 ![YARN](./img/yarn_architecture.gif)
 
-简单地说，YARN主要由ResourceManager、NodeManager、ApplicationMaster和Container等几个组件构成。
-
-Container是Yarn对计算机计算资源的抽象，它其实就是一组CPU和内存资源，所有的应用都会运行在Container中。ApplicationMaster是对运行在Yarn中某个应用的抽象，它其实就是某个类型应用的实例，ApplicationMaster是应用级别的，它的主要功能就是向ResourceManager（全局的）申请计算资源（Containers）并且和NodeManager交互来执行和监控具体的task。
-Scheduler是ResourceManager专门进行资源管理的一个组件，负责分配NodeManager上的Container资源，NodeManager也会不断发送自己Container使用情况给ResourceManager。
+YARN主要由ResourceManager、NodeManager、ApplicationMaster和Container等几个组件构成。
 
 （1）ResourceManager（RM）是一个全局的资源管理器，负责整个系统的资源管理和分配。RM有两个主要组件：调度器(Scheduler)和应用程序管理器(Applications Manager)。
+- Scheduler接收来自ApplicationMaster的资源请求，把系统中的资源以Container的形式向各种运行的应用程序分配。YARN提供了多种直接可用的调度器，比如FairScheduler和Capacity Scheduler等，并允许用户重新设计调度器。
+- ApplicationsManager负责接受作业提交，启动应用程序特定的ApplicationMaster。监控ApplicationMaster的运行，在失败时重新启动ApplicationMaster。监控NodeManager。
 
-调度器(Scheduler)，负责根据容量，队列等的熟悉约束，向各种运行的应用程序分配资源。调度程序是纯调度器，它不执行监视或跟踪应用程序的状态。此外，由于应用程序故障或硬件故障，它不能保证重新启动失败的任务。调度程序根据应用程序的资源需求执行其调度功能; 它基于包含诸如内存，cpu，磁盘，网络等元素的资源容器的抽象概念。YARN提供了多种直接可用的调度器,比如FairScheduler和Capacity Scheduler等。ApplicationsManager负责接受作业提交，协商第一个容器来执行应用程序特定的ApplicationMaster，并提供服务，以便在失败时重新启动ApplicationMaster容器。每个应用程序ApplicationMaster有责任从调度程序协商适当的资源容器，跟踪其状态并监视进度。
+（2）ApplicationMaster（AM）
+ApplicationMaster负责一个应用程序生命周期内的所有工作。每一个应用程序都有一个ApplicationMaster，它可以运行在ResourceManager 以外的机器上。AM主要功能包括:
+- 与RM调度器协商以获取资源（用Container表示）。
+- 分配给内部的任务（map任务，reduce任务）。二次分配。
+- 与NM通信以启动/停止任务。
+- 监控所有任务运行状态，并在任务运行失败时重新为任务申请资源以重启任务。
+- 向RM发送应用程序心跳。
+- 程序完成后，向RM注销Container。
 
-监控NodeManager
-
-（2）ApplicationMaster (AM)
-当用户提交一个应用程序时,需要提供一个用以跟踪和管理这个程序的ApplicationMaster（AM）,它负责向ResourceManager申请资源,并要求 NodeManger 启动可以占用一定资源的任务。
-AM主要功能包括:
-
-与 RM 调度器协商以获取资源(用 Container 表示);
-将得到的任务进一步分配给内部的任务;
-与 NM 通信以启动 / 停止任务;
-监控所有任务运行状态,并在任务运行失败时重新为任务申请资源以重启任务。
-ApplicationMaster 负责一个应用程序生命周期内的所有工作。但注意每一个 应用程序（不是每一种）都有一个 ApplicationMaster，它可以运行在 ResourceManager 以外的机器上。
-数据切分
-
-（3）NodeManager ( NM )
-NM 是每个节点上的资源和任务管理器,一方面,它会定时地向 RM 汇报本节点上的资源使用情况和各个 Container 的运行状态;另一方面,它接收并处理来自 AM 的 Container启动 / 停止等各种请求。
-NM 功能比较专一，就是负责 Container 状态的维护，并向 RM 保持心跳。
+（3）NodeManager (NM)
+是每个节点上的资源和任务管理器，Container的生命周期管理。它会定时地向RM汇报本节点上的资源使用情况和各个Container的运行状态，同时它接收并处理来自AM的Container启动/停止等各种请求。
 
 （4）Container
-Container 是 YARN 中 的 资 源 抽 象, 它 封 装 了 某 个 节 点 上 的 多 维 度 资 源, 如 内 存、CPU、磁盘、网络等,当 AM 向 RM 申请资源时,RM 为 AM 返回的资源便是用 Container表示的。YARN 会为每个任务分配一个 Container,且该任务只能使用该 Container 中描述的资源。需要注意的是,Container 不同于 MRv1 中的 slot,它是一个动态资源划分单位,是根据应用程序的需求动态生成的。目前,YARN 仅支持 CPU 和内存两种资源,且使用了轻量级资源隔离机制 Cgroups 进行资源隔离。
+Container是YARN中的资源抽象，它封装了某个节点上的资源，如内存、CPU等。YARN会为每个任务分配一个 Container，且该任务只能使用该Container中描述的资源。Container不同于MRv1中的slot，它是一个动态资源划分单位，是根据应用程序的需求动态生成的。目前YARN仅支持CPU和内存两种资源，且使用了轻量级资源隔离机制Cgroups进行资源隔离。
 
+1.0时代的JobTracker负责资源管理，任务调度，任务监控。现在资源管理由ResourceManager负责，任务调度和监控由ApplicationMaster负责。每个程序都有自己的ApplicationMaster，这就实现了监控的分布化，减轻了NameNode节点的压力。
 
 ### YARN工作流程
-当用户向YARN中提交一个应用程序后,YARN将分两个阶段运行该应用程序 :第一个阶段是启动ApplicationMaster;第二个阶段是由ApplicationMaster创建应用程序,为它申请资源,并监控它的整个运行过程,直到运行完成。
+当用户向YARN中提交一个应用程序后，YARN将分两个阶段运行该应用程序：第一个阶段是启动ApplicationMaster，第二个阶段是由ApplicationMaster创建应用程序，为它申请资源并监控它的整个运行过程直到运行完成。
 
 1. 客户端程序向ResourceManager提交应用并请求一个ApplicationMaster实例。
 2. ResourceManager进程和NodeManager进程通信，根据集群资源，为用户程序分配第一个容器，ResourceManager找到可以运行一个Container的NodeManager，并在这个Container中启动ApplicationMaster实例。
-3. ApplicationMaster向ResourceManager进行注册，注册之后客户端就可以查询ResourceManager获得自己ApplicationMaster的详细信息，以后就可以和自己的ApplicationMaster直接交互了。
+3. ApplicationMaster向ResourceManager进行注册，注册之后客户端就可以查询ResourceManager获得ApplicationMaster的详细信息，以后就可以和ApplicationMaster直接交互了。
 4. ApplicationMaster根据resource-request协议向ResourceManager发送resource-request请求，为自己的应用程序申请容器资源。
 5. 当Container被成功分配之后，ApplicationMaster通过向NodeManager发送container-launch-specification信息来启动Container，container-launch-specification信息包含了能够让Container和ApplicationMaster交流所需要的资料。
 6. 应用程序的代码在启动的Container中运行，并把运行的进度、状态等信息通过application-specific协议发送给ApplicationMaster。
 7. 在应用程序运行期间，提交应用的客户端主动和ApplicationMaster交流获得应用的运行状态、进度更新等信息，交流的协议也是application-specific协议。
 8. 一但应用程序执行完成并且所有相关工作也已经完成，ApplicationMaster向ResourceManager取消注册然后关闭，用到所有的Container也归还给系统
 
+### YARN的资源管理
+资源调度和隔离是YARN最重要且最基础的两个功能。资源调度由resourcemanager完成，而资源隔离由各个nodemanager实现。
 
-YARN的资源管理
-1、资源调度和隔离是yarn作为一个资源管理系统，最重要且最基础的两个功能。资源调度由resourcemanager完成，而资源隔离由各个nodemanager实现。
-
-2、Resourcemanager将某个nodemanager上资源分配给任务（这就是所谓的“资源调度”）后，nodemanager需按照要求为任务提供相应的资源，甚至保证这些资源应具有独占性，为任务运行提供基础和保证，这就是所谓的资源隔离。
-
-3、当谈及到资源时，我们通常指内存、cpu、io三种资源。Hadoop yarn目前为止仅支持cpu和内存两种资源管理和调度。
-
-4、内存资源多少决定任务的生死，如果内存不够，任务可能运行失败；相比之下，cpu资源则不同，它只会决定任务的快慢，不会对任务的生死产生影响。
+内存资源多少决定任务的生死，如果内存不够，任务可能运行失败；相比之下，cpu资源则不同，它只会决定任务的快慢，不会对任务的生死产生影响。
 
 Yarn的内存管理：
 yarn允许用户配置每个节点上可用的物理内存资源，注意，这里是“可用的”，因为一个节点上内存会被若干个服务贡享，比如一部分给了yarn，一部分给了hdfs，一部分给了hbase等，yarn配置的只是自己可用的，配置参数如下：
@@ -245,8 +253,6 @@ yarn.scheduler.maximum-allocation-vcores
 
 单个任务可以申请最多虚拟cpu个数，默认是32.
 
-
----
 
 
 ---
