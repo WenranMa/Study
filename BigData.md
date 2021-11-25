@@ -30,6 +30,8 @@ Jim Gray
 ![Hadoop](./img/hadoop.JPG)
 
 两大核心：
+- HDFS
+- MapReduce
 
 ### HDFS
 HDFS分布式文件系统，存储。（Hadoop Distributed File System）
@@ -83,19 +85,51 @@ HDFS读流程：
 
 
 
+### MapReduce
 
-
-2.MapReduce分布式计算
-
-一种编程模型，分而治之。MapReduce依赖磁盘读写。
-
-	输入一个大文件，分片，每片文件交给单独的机器去处理，这就是Map方法。
-	各个结果再汇总得到最终结果，这就是Reduce方法。
+一种编程模型，分而治之。输入一个大文件，分片，每片文件交给单独的机器去处理，这就是Map方法。各个结果再汇总得到最终结果，这就是Reduce方法。
 	
-	Map存在衔接开销，Reduce方法必须等所有的Map方法完成之后才能开始。
+理念：计算向数据靠拢（数据不进行或者只有很少的迁移，计算就发生在数据所在节点或者很近的节点），而不是数据向计算靠拢（机器拉取数据）。
 
----
+Master/Slave结构：
+- 一个Master服务器，提供JobTracker，处理整个作业的调度，失败处理，恢复等。
+- 多个slave服务器，提供TaskTracker，负责JobTracker分发的作业处理指令，完成具体任务。
 
+MapReduce方法：
+- Map函数的输入是一个`<K,V>`，例如`<"row":"a,b,c">`，输出是一批，也就是`List(<K,V>)`，例如`(<"a":1>,<"b":(1,1)>,<"c":1>)`。他们是计算的中间结果。
+- Reduce函数的输入`<K, List(V)>`，例如`<"a":(1,1,1)>`，输出是一个`<K,V>`，例如`<"a":3>`。
+
+#### 结构
+- client：用户通过client提交编写的程序到JobTracker端，同事可以查看状态等。
+- JobTracker：资源监控，作业调度，监控TaskTracker的健康情况。
+- TaskScheduler：通过JobTracker发过来的监控的信息，执行具体的资源调度。
+- TaskTracker：执行具体任务，也会发送心跳信息发送给JobTracker。
+
+TaskTracker会将本机资源（cpu，memory）分成多个slot，每个slot是一部分CPU和memory，slot还分为map类型和reduce类型。只有本机有空闲的slot，相关的task才可以被分配到本机。
+
+Task分为map task和reduce task，一个机器可以同时运行map task和reduce task的。
+
+#### 工作流程
+- InputFormat从HDFS中加载数据。
+- 把大的数据集切分成split，这里是逻辑切分并不是物理切分。
+- RecordReader（RR）根据分片信息从HDFS中各个块中读取Split。
+- 以KeyValue形式输入map函数，map函数包含了用户处理逻辑，map任务的数量是有分片split决定的。
+- map函数输出的多组键值，进行Shuffle。
+- 之后输入给reduce函数，输出键值对。
+- OutputFormat对结果进行检查。
+
+Shuffle过程：
+
+Shuffle操作在map端和reduce端都有。
+- map函数的结果并不是直接给reduce函数，而是先写入缓存。
+- 缓存写入数据达到溢写比（通常0.8，100MB缓存写入80MB后，不能写满缓存再溢写，不然后续的结果没地方可写），启动溢写操作。
+- 溢写会有分区，排序，合并（比如相同键的合并），合并不是必须的，是用户定义的。
+- 每次溢写生成一个磁盘文件，多个磁盘文件会归并成一个或多个大文件。
+- reduce任务会从多个map结果中把属于自己分区的任务拉到本地，并执行归并操作。
+
+MapReduce实现自然连接操作，把两个表公共的column，比如ID当成key，其他列和表名当做value。key相同的会被连接。
+
+MapReduce依赖磁盘读写，Map存在衔接开销，Reduce方法必须等所有的Map方法完成之后才能开始。
 
 
 
@@ -219,45 +253,245 @@ yarn.scheduler.maximum-allocation-vcores
 
 
 ## Hbase
+Google Big Table的开源实现，Big Table是架构在GFS（Google File System）之上的。
 
 分布式数据库，利用HDFS作为文件存储系统，支持MapReduce程序读取数据。
 
 支持存储非结构化和半结构化数据。
 
+为什么出现HBase：
+- MapReduce + HDFS 有延时，无法满足实时处理需求。
+- 关系型数据库扩展性差，不能应对数据结构变化。
 
-	特点：
-		海量数据存储（单表百亿行x百万列），准实时查询。	面向列，不同于关系型数据块，Hbase列可以动态增加。对列进行单独操作。
-		多版本，TimeStamp。
-		稀疏性，因为列是动态的，所以为空的列不占用空间。
-		扩展性，高可靠，依赖HDFS。
+特点：
+- 海量数据存储（单表百亿行x百万列），准实时查询。	
+- 面向列，不同于关系型数据块，Hbase列可以动态增加。对列进行单独操作。
+- 多版本，TimeStamp。
+- 稀疏性，因为列是动态的，所以为空的列不占用空间。
+- 扩展性，高可靠，依赖HDFS。
 
-	几个概念：
-		RowKey：数据唯一标识。
-		Column Family：多个列的集合。
-		TimeStamp：支持多版本数据。
+与传统关系型数据库区别：
+- 区别于关系型数据库，hbase列是动态增加的，关系型数据库是需要提前定好列。
+- 数据会自动切分，关系型数据库需要人工干预。
+- 数据类型，传统数据库多，HBase就是未经解读的字符串。
+- 数据操作，比传统的少，没有连接操作，因为不需要，都在一张表里。
+- 存储模式，传统基于行，HBase基于列存储。
+- 索引，传统支持多级索引，HBase行键索引。
+- 数据维护，更新，传统覆盖，HBase版本控制。
+- 可伸缩性，更好。
+- 自带高并发读写，关系型数据库需要引入缓存一类的插件实现。
+- 缺点：不支持条件查询，不能进行复杂查询
 
-	每条数据有一个rowkey，一个timestamp，多个列簇，列簇包括多行数据
+访问接口：
+- Java API
+- Shell
+- Rest Gateway
+- Thrift Gateway ?
+- SQL类型接口
+- Hive，HiveSQL
 
-	列簇的概念：
-		一张表的类簇尽可能不超过5个，否则容易导致性能下降。
-		每个列簇的列数没有限制。
-		列只有插入数据后才存在，是动态增加的。
-		列在列簇中是有序的。
+#### Data Model
+有四个概念：
+- 行键，RowKey数据唯一标识。
+- 列族，Column Family多个列的集合。
+- 列限定符
+- 时间戳，TimeStamp，支持多版本数据。
+
+每条数据有一个rowkey，一个timestamp，多个列簇，列簇包括多行数据。HBase不需要指定具体的列，而是要指定列簇，就是列的分类。列簇中每一条数据的列可以不同。
+
+列簇的概念：
+- 一张表的类簇尽可能不超过5个，否则容易导致性能下降。
+- 每个列簇的列数没有限制。
+- 列只有插入数据后才存在，是动态增加的。
+- 列在列簇中是有序的。
 
 举例：
 ![hbase](./img/hbase.jpg)
 
-	HBase架构；
-	有两个进程，Master和RegionServer。
-	依赖两个服务，Zookeeper和HDFS。Zookeeper在分布式构架中常用。
+HBASE可以支持数十亿行，百万列，一个列族可以有多个列，列又叫列限定符。有单元格的概念，可以通过行键，时间戳，列族，列限定符确定一个单元格，即四维定位，HBASE的读写都是按单元格来的。
 
-	HBase不需要指定具体的列，而是要指定列簇，就是列的分类。列簇中每一条数据的列可以不同。
+如果吧四个维度当成一个Key，HBase也可以理解为键值数据库。
 
-	与关系型数据库对比：
-		区别于关系型数据库，hbase列是动态增加的，关系型数据库是需要提前定好列。
-		数据会自动切分，关系型数据库需要人工干预。
-		自带高并发读写，关系型数据库需要引入缓存一类的插件实现。
-		缺点：不支持条件查询，不能进行复杂查询
+列族可以动态扩展，增加或减少。
+
+时间戳是因为HDFS只允许一次写入，多次读取，所以单元格不能被改写，只能生成新的版本，为了获取新版本，需要时间戳。
+
+时间戳是自动生成的，取数据也是取最新版本。
+
+
+概念视图，稀疏表，表示并不是每个单元格都有值。
+
+物理视图，但在底层存储上，是以列族为单位进行存储。
+
+分区是先按照行切，再按照列族切。
+
+数据分析大多是基于某个或某些维度，即列来做分析。所以列式存储比行式存储做分析更快。另外列式存储，每个列类型都是一样的，所以方便压缩，压缩率高。
+
+#### Region寻址
+
+HBase架构；
+- 有两个进程，Master和RegionServer。
+- 依赖两个服务，Zookeeper和HDFS。Zookeeper在分布式构架中常用。
+
+客户端可以直接和region服务器通信。
+
+一个HBase表会被划分成多个region，一个region也可以被分裂成多个region。region实际大小取决于单台服务器的有效处理能力。每个region服务器可以存10到1000个region。同一个region不会被拆分到不同的region服务器。
+
+三层结构实现region寻址。
+
+- META表，有两列：region id， region server ID。是一个映射关系，但随着region的分裂，META表也需要分region去存。
+- 所以又有ROOT表去存放META表与Region服务器的映射。Root表不能分裂，只能存在一个Region服务器。
+- ROOT表地址写死在Zookeeper中。
+
+
+#### 数据读写
+
+- 客户端。
+- Zookeeper，保证只有一个master在运行。
+- Master，负责表和RegionServer的管理，负载均衡，Region分裂合并。
+- RegionServer。
+
+一个RegionServer会有存有多个Region，每个Region会存储一个表的若干列族，一个列族叫一个Store，Store的数据写入Storefile，Storefile对应的就是HDFS中的HFile中。
+
+- 写入数据：先写缓存MemStore，同时写日志HLog。
+- 读数据：也是先读MemStore，读不到再去RegionServer。
+- 缓存刷新：系统周期性的把MemStore内容刷写到StoreFile，并在HLog中标记。
+- 每个Store可以有多个StoreFile。
+- 一个RegionServer会维护一个公共的HLog。
+
+StoreFile合并，磁盘刷写的StoreFile过多达到阈值，会发生合并，合并会消耗资源。系统最初只有一个Region，多个StoreFile，多个StoreFile合并后超过一个RegionServer的处理能力，又会分裂成多个StoreFile到多个Region。
+
+HLog，用于数据恢复，如果RegionServer故障，Master会拉取这个RegionServer的HLog，对其中的每个Region的操作记录拆分，再恢复。
+
+- HColumnDescriptor.setInMemory：列放入缓存，提高读写性能。
+- HColumnDescriptor.setMaxVersions：最大版本数，如果是1，则只存最新版本。
+- TimeToLive：过期自动删除。
+
+现在也可以通过SQL访问HBase，方便使用，减少编码。比如用Hive。
+
+
+HBase二级索引?
+
+---
+
+## NoSQL
+反SQL运动的演变到Not Only SQL。
+
+现在的关系型数据库如MySQL常常采用主从结构，master和slave，master用于写负载，slave用于读负载。数据写入master后同步到slave。实现读写分离。数据量进一步扩大后，则采用分库，分表的方式，不同的库放在不同的物理机，实现负载分流。
+
+- 复杂，集群管理复杂。
+- 主库压力大时，会有延时。
+- 扩容重新重新分库分表太难。
+- 单一数据模型也有局限性。
+
+所以无法解决数据扩张的问题。
+
+关系型数据库的事务性和高效查询，反而成了web2.0时代的累赘。
+
+- web2.0不都是严格事务。
+- 没有实时要求。
+- 不包含复杂SQL。
+
+所以就出现了NoSQL，可以支持对大规模数据的存储，灵活的数据模型。
+
+#### NoSQL数据库类型
+
+- 键值数据库：Redis，DynamoDB。键是字符串，值可以是任意类型，数组，列表，结合等。应用于涉及频繁读写，简单数据模型的应用。大量写操作时性能好。但无法存储结构型数据，条件查询效率低。无法通过值查询。是理想的缓冲层解决方案，把经常访问的数据放入缓冲层，提高访问性能。DDB Sinker
+- 列族数据库：如HBase，数据模型就是列族。用于分布式数据存储，适用于拥有动态字段的应用。查找速度快。
+- 文档数据库：可看做键值数据库，不过形式是文档。例如：MongoDB。可以对数据内容和类型做自我描述。Json数据格式是典型的文档数据库，文档数据库可以完整的包含在一个文档里，并发性好，数据更新只要锁定一个文档。灵活性高，支持嵌套。但缺乏统一查询语法，并且文档间不支持事务。
+- 图形数据库：Neo4j，用图的节点和边来存储信息，适用于高度相关联的数据，比如社交网络，推荐，依赖分析。
+
+#### NoSQL理论
+
+CAP：
+
+- Consistency，一致性，任何一次读操作，总能读到之前一次写的结果。
+- Availability，可用性，快速获取数据，确定时间内返回结果。
+- Partition tolerance，一部分节点无法通信，系统也可以正常运行。
+
+分布式系统不可能同时满足以上三点，只能三取二：
+
+- CA：MySQL。
+- AP：DynamoDB。
+- CP：HBase，MongoDB。
+
+BASE：（中文翻译碱，对应事务性ACID的酸）
+
+- Basically Available：基本可以用，即满足P。
+- Soft state：硬状态，一直保持数据一致。软状态，可以有一段时间不一致，滞后性。
+- Eventual consistency：强一致性，弱一致性，区别是高并发时，能否获取最新数据。最终一致性是弱一致性的一个特例，可以有时间不一致，但最终一致。
+
+最终一致性：
+
+- 因果一致性：进程A通知进程B已更新数据，则B可以获取A写入的结果。
+- “读己之所写”一致性：进程A写入一个数据，它自己总是可以获取新的值。
+- 单调读一致性：如果进程看到过对象的某个值，那个该进程不会得到这个值之前的旧值。
+- 会话一致性：进程在会话的上下文中，会话存在就能保证一致性。
+- 单调写一致性：同一进程的写操作要保证顺序执行。
+
+一致性理论：
+
+- N：数据冗余份数。
+- W：更新数据所需节点数。
+- R：读取数据所需节点数。
+- W+R>N：强一致性，如W=2，N=2，R=1。
+- W+R<=N：弱一致性。
+
+HBase采用底层HDFS实现数据冗余。HDFS采用强一致性，在数据没有同步到N个节点之前，写操作W不会成功返回，所以W=N，而读只要读到一个节点即可，R=1。
+
+NewSQL：同时具有OldSQL和NoSQL的特点，事务性，强一致性，可扩展，SQL查询。比如RDS。
+
+#### MongoDB
+文档数据库，数据存储为一个文档，数据由键值对组成，类似Json，是二进制格式的，叫BSon。
+
+与传统数据库对比：
+
+| 传统数据库 | MongoDB    |
+|----------|------------|
+| database | database   |
+| table    | collection |
+| row      | document   |
+| column   | field      |
+
+每一行都是一个单独的文档。一个文档记录所有内容，所以不需要跨表连接操作。
+
+比如下面的例子：
+```json
+{
+	"id":1,
+	"author": "wrma",
+	"blogs": {
+		"title": "First",
+		"comment": {
+			"by": "xyhu",
+			"text": "good post!"
+		}
+	}
+}
+```
+普通数据库，需要author，blogs，comment三张表，而MongoDB只要一个文档。
+
+一个collection可以有多个文档，而且文档的数据格式可以完全不同。
+
+
+
+## Cloud DB
+UMP，阿里Unified MySQL Platform。
+
+
+AWS云服务：
+
+- 全球分为12个Region，每个Region又分多个Available Zone，AZ。
+- 网络：Route 53，云域名解析系统。
+- 计算：EC2，ELB。
+- 存储：S3。EBS，针对EC2设计，给EC2挂一个EBS。Glacier，存储较少使用的数据。
+- DB：NoSQL，KV型SimpleDB，DynamoDB。关系型RDS。ElastiCache。
+- App Service。
+- 部署。
+
+EBS的服务对象是系统管理员，不对用户开放。S3服务员管理员和最终用户。
+
+RDS关系型数据库：支持MySQL，Oracle，SQLServer，PostgreSQL，MariaDB，AWS的关系型数据库Aurora。
 
 
 ---
