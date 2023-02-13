@@ -516,19 +516,40 @@ RDS关系型数据库：支持MySQL，Oracle，SQLServer，PostgreSQL，MariaDB�
 
 ---
 
+
 ## Hive
-	
-数据仓库，将多个数据源的数据经过ETL之后，按照一定主题集成起来提供决策支持和联机分析应用的数据环境。
+
+数据仓库，保存历史上所有数据，数据不会轻易改变。将多个数据源的数据经过ETL之后，按照一定主题集成起来提供决策支持和联机分析应用的数据环境。
 
 ETL = Extract, Transform, Load.
 
-Hive就是基于Hadoop的数仓工具，提供类SQL支持。它以MapReduce作计算引擎，HDFS作为存储系统。
+传统数仓工具同时支持存储和分析。但Hive并不提供存储和处理，而是基于Hadoop的数仓工具，以MapReduce作计算引擎，HDFS作为存储系统。Hive本身更像是一种面向用户的接口，提供一种编程语言HQL。
 
 Hive不负责存储，数据实体不在Hive，Hive的库和表是对HDFS上数据的映射。这些映射叫Hive的元数据（metadata），存在外部关系型数据块上，即Hive metastore
 
-Hive语句的执行：将HQL转换成MapReduce任务。MR要频繁进行IO读写，所以Hive的查询速度不快，所以与Presto查询引擎结合。
+- 批处理方式处理海量数据，HiveQL转换成MapReduce任务。数据仓库存储的是静态数据，MR要频繁进行IO读写，所以Hive的查询速度不快，所以与Presto查询引擎结合。适合用批处理方式，不需要快速响应给出结果。
+- Hive提供一系列对数据新型提取，转换，加载（ETL）的工具。
+
+与PIG和HBase的关系：Pig主要用于数仓的ETL环节。HBASE主要用于实时查询分析。Hive主要用于数仓的海量数据批处理环节。
+
+Hive只支持批量导入数据，数据只读，不支持数据更新，执行延迟高。
 
 
+#### Hive存储格式
+  
+  TextFile
+  Sequence File
+  OrcFile
+  
+  列式存储
+
+#### 结构
+
+Hive 接口
+
+Hive Driver
+
+Hive metastore
 
 hive server2?  类似presto
 
@@ -538,21 +559,141 @@ metadata 结构
  database
   tables
    partitions
-   	buckets
+    buckets
 
 fileformat and serdes??
 
 
 OLTP and OLAP ？？
 
+#### SQL to MapReduce
+Hive本身不做数据处理和存储，而是把SQL转换成MapReduce作业。
 
-#### Hive存储格式
-	
-	TextFile
-	Sequence File
-	OrcFile
-	
-	列式存储
+- Join的实现原理：
+
+User表：
+
+| uid | name |
+| --- | ---- |
+|  1  | Lily |
+|  2  | Tom  | 
+
+Order表：
+
+| uid | orderId |
+| --- | ------- |
+|  1  | 101     |
+|  1  | 102     |
+|  2  | 103     |
+
+两个表有共同的列uid，所以可以做join操作。
+
+Map操作：key就是uid，value是表名（用数字代替）和name的组合。
+
+| key | value     |
+| --- | --------- |
+|  1  | <1, Lily> |
+|  2  | <1, Tom>  | 
+
+| key | value    |
+| --- | -------- |
+|  1  | <2, 101> |
+|  1  | <2, 102> |
+|  2  | <2, 103> |
+
+Shuffle操作：保证key相同。
+
+| key | value     |
+| --- | --------- |
+|  1  | <1, Lily> |
+|  1  | <2, 101>  |
+|  1  | <2, 102>  |
+
+
+| key | value     |
+| --- | --------- |
+|  1  | <1, Tom>  |
+|  2  | <2, 103>  | 
+
+Reduce操作：
+
+| name | orderid |
+| ---- | ------- |
+| Lily | 101     |
+| Lily | 102     |
+
+| name | orderid |
+| ---- | ------- |
+| Tom  | 103     |
+
+- Group by实现原理：
+```sql
+select rank, level, count(*) as value
+from score
+group by rank, level
+```
+
+| rank | level |
+| ---- | ----- |
+|  A   | 1     |
+|  A   | 1     |
+
+| rank | level |
+| ---- | ----- |
+|  A   | 1     |
+|  B   | 2     |
+
+Map操作：
+
+| key     | value |
+| ------- | ----- |
+| < A, 1> | 2     |
+
+| rank    | level |
+| ------- | ----- |
+| < A, 1> | 1     |
+| < B, 2> | 1     |
+
+Shuffle操作：
+
+| key     | value |
+| ------- | ----- |
+| < A, 1> | 2     |
+| < A, 1> | 1     |
+
+| rank    | level |
+| ------- | ----- |
+| < B, 2> | 1     |
+
+Reduce操作：
+
+| rank | level | value |
+| ---- | ----- | ----- |
+|  A   | 1     | 3     |
+
+| rank | level | value |
+| ---- | ----- | ----- |
+|  B   | 2     | 1     |
+
+具体过程：
+
+- Hive驱动模块中的编译器对SQL进行解析，生成语法树。
+- 语法树复杂，要转换成查询块。
+- 查询块转换成逻辑操作符。
+- 重写逻辑操作，优化合并多余操作，减少mapreduce任务。
+- 逻辑操作符转换成mapreduce任务。
+- 驱动模块中的执行器执行最终的mapreduce任务。
+
+Hive本身不会生成mapreduce程序，而是生成一个xml文件的job执行计划，驱动原生的mapper和reducer模块。
+
+
+## Impala
+查询系统，比Hive性能好，但依赖Hive的元数据。采用分布式查询引擎，直接与HDFS或者Hbase交互，不需要转换成MapReduce任务。
+
+与Hive采用同样的SQL语法，ODBC接口。
+
+
+
 
 
 ---
