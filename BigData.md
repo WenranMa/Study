@@ -212,7 +212,7 @@ Container是YARN中的资源抽象，它封装了某个节点上的资源，如�
 内存资源多少决定任务的生死，如果内存不够，任务可能运行失败；相比之下，cpu资源则不同，它只会决定任务的快慢，不会对任务的生死产生影响。
 
 Yarn的内存管理：
-yarn允许用户配置每个节点上可用的物理内存资源，注意，这里是“可用的”，因为一个节点上内存会被若干个服务贡享，比如一部分给了yarn，一部分给了hdfs，一部分给了hbase等，yarn配置的只是自己可用的，配置参数如下：
+yarn允许用户配置每个节点上可用的物理内存资源，比如一部分给了yarn，一部分给了hdfs，一部分给了hbase等，yarn配置的只是自己可用的，配置参数如下：
 
 yarn.nodemanager.resource.memory-mb
 
@@ -239,7 +239,7 @@ yarn.scheduler.maximum-allocation-mb
 单个任务可以申请的最多的内存量，默认8192m
 
 Yarn cpu管理：
-目前cpu被划分为虚拟cpu，这里的虚拟cpu是yarn自己引入的概念，初衷是考虑到不同节点cpu性能可能不同，每个cpu具有计算能力也是不一样的，比如，某个物理cpu计算能力可能是另外一个物理cpu的2倍，这时候，你可以通过为第一个物理cpu多配置几个虚拟cpu弥补这种差异。用户提交作业时，可以指定每个任务需要的虚拟cpu个数。在yarn中，cpu相关配置参数如下：
+目前cpu被划分为虚拟cpu，这里的虚拟cpu是yarn自己引入的概念，初衷是考虑到不同节点cpu性能可能不同，每个cpu具有计算能力也是不一样的，比如，某个物理cpu计算能力可能是另外一个物理cpu的2倍，这时可以通过为第一个物理cpu多配置几个虚拟cpu弥补这种差异。用户提交作业时，可以指定每个任务需要的虚拟cpu个数。在yarn中，cpu相关配置参数如下：
 
 yarn.nodemanager.resource.cpu-vcores
 
@@ -254,6 +254,20 @@ yarn.scheduler.maximum-allocation-vcores
 单个任务可以申请最多虚拟cpu个数，默认是32.
 
 
+### Hadoop生态
+#### Pig
+- 简单的Pig Latin语句就能实现复杂的数据分析任务。
+- Pig Latin语句自动转换成MapReduce任务。
+- 减少编码量。
+
+Pig做数据加工 -> Hive做数据仓库
+
+#### Tez
+支持DAG作业的计算框架。把map和reduce操作拆分成更细粒度的操作，然后生成有向无环图。并且可以去掉图中多余步骤，优化性能。
+
+- Hive，Pig，MapReduce运行于Tez之上，优化性能。
+- Tez在Yarn之上。
+- Yarn在HDFS之上。
 
 ---
 
