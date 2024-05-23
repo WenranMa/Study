@@ -1,17 +1,20 @@
 # Docker
+
+虚拟机技术：将物理服务器虚拟成多个逻辑服务器。
+![hypervisor](/img/hypervisor.JPG)
+
+每个虚拟机都右完整的操作系统，之间彼此隔离。因为运行完整的操作系统，所以速度慢。
+![hypervisor1](/img/hypervisor_1.JPG)
+
 Docker不是虚拟机，但可以理解为轻量的虚拟机。Docker可以让开发者打包他们的应用以及依赖包到一个轻量级、可移植的容器中，然后发布到任何流行的Linux机器上。
+![docker](/img/docker.JPG)
 
-容器是完全使用沙箱机制，相互之间不会有任何接口（类似iPhone的app)，更重要的是容器性能开销极低。
+## Docker 包括三个基本概念:
+- 镜像（Image）
+- 容器（Container）
+- 仓库（Repository）
 
-![Docker Architecture](./img/architecture_docker.svg)
-
-Docker 包括三个基本概念:
-
-    镜像（Image）
-    容器（Container）
-    仓库（Repository）
-
-#### 镜像（Image）
+### 镜像（Image）
 An image is an executable package that includes everything needed to run an application, the code, a runtime, libraries, environment variables, and configuration files.
 
 操作系统分为内核和用户空间，对于Linux而言，内核启动后，会挂载root文件系统为其提供用户空间支持。
@@ -21,17 +24,23 @@ An image is an executable package that includes everything needed to run an appl
 利用Union FS的技术(联合文件)，将其设计为分层存储的架构。镜像构建时，会一层层构建，前一层是后一层的基础。
 每一层构建完就不会再发生改变，后一层上的任何改变只发生在自己这一层。分层存储的特征还使得镜像的复用、定制变的更为容易。甚至可以用之前构建好的镜像作为基础层，然后进一步添加新的层，以定制自己所需的内容，构建新的镜像。
 
-#### 容器（Container)
+### 容器（Container)
 A container is launched by running an image, an instance of an image. What the image becomes in memory when executed (that is, an image with state, or a user process).
 
 镜像运行时的实体。镜像（Image）和容器（Container）的关系，就像是面向对象程序设计中的类和实例一样，镜像是静态的定义，容器是镜像运行时的实体。容器可以被创建、启动、停止、删除、暂停等 。容器的实质是进程，但与直接在宿主执行的进程不同，容器进程运行于属于自己的独立的命名空间。
 
 容器也是分层存储。容器存储层的生存周期和容器一样，容器消亡时，容器存储层也随之消亡。因此，任何保存于容器存储层的信息都会随容器删除而丢失。按照Docker最佳实践的要求，容器不应该向其存储层内写入任何数据，容器存储层要保持无状态化。所有的文件写入操作，都应该使用数据卷（Volume）来提供独立于容器之外的持久化存储。或者绑定宿主目录，在这些位置的读写会跳过容器存储层，直接对宿主(或网络存储)发生读写，其性能和稳定性更高。
 
-#### 仓库（Repository）
+容器是完全使用沙箱机制，相互之间不会有任何接口（类似iPhone的app)，更重要的是容器性能开销极低。？？？
+
+### 仓库（Repository）
 集中存放镜像文件的地方。镜像构建完成后，可以很容易的在当前宿主上运行，但是如果需要在其它服务器上使用这个镜像，我们就需要一个集中的存储、分发镜像的服务，Docker Registry就是这样的服务。一个Docker Registry中可以包含多个仓库（Repository），每个仓库可以包含多个标签（Tag），每个标签对应一个镜像(版本)。我们可以通过<仓库名>:<标签>的格式来指定具体是这个软件哪个版本的镜像。如果不给出标签，将以latest作为默认标签。
 
 最常使用的Registry公开服务是官方的Docker Hub(hub.docker.com)。
+
+## Client-Server
+Docker是client server模式。Docker Daemon是服务端的守护进程，负责管理Docker的各种资源。各种docker命令都是通过docker客户端发送给docker daemon，处理后再返回给docker client。
+![Docker Architecture](./img/architecture_docker.svg)
 
 ## 命令
     docker run ubuntu echo hello docker 是用一个Ubuntu镜像运行ehco hello docker命令。
@@ -58,7 +67,7 @@ A container is launched by running an image, an instance of an image. What the i
     docker rmi $(docker images -q) 删除所有image
 
 ## Dockerfile 
-可以用dockerfile来创建镜像。例如：
+可以用Dockerfile来创建镜像。例如：
 ```bash
 FROM ubuntu
 RUN sed -i 's/archive.ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list
@@ -93,20 +102,20 @@ Docker runs instructions in a Dockerfile in order. A Dockerfile must start with 
 
 Docker treats lines that begin with # as a comment, unless the line is a valid parser directive. A # marker anywhere else in a line is treated as an argument.
 
-镜像分层，dockerfile中每一行都是一个新层。
+镜像分层，Dockerfile中每一行都是一个新层。
 
-##### FROM
+### FROM
 The `FROM` instruction initializes a new build stage and sets the Base Image for subsequent instructions. As such, a valid Dockerfile must start with a FROM instruction.
 
-##### RUN 执行命令
+### RUN 执行命令
 The `RUN` instruction will execute any commands in a new layer on top of the current image and commit the results. The resulting committed image will be used for the next step in the Dockerfile.
 
-##### CMD
+### CMD
 There can only be one CMD instruction in a Dockerfile. If you list more than one CMD then only the last CMD will take effect. 常用于传递命令参数。
 
 The main purpose of a CMD is to provide defaults for an executing container. These defaults can include an executable, or they can omit the executable, in which case you must specify an ENTRYPOINT instruction as well.
 
-##### ADD 添加文件
+### ADD 添加文件
 ADD has two forms:
 
     ADD [--chown=<user>:<group>] <src>... <dest>
@@ -114,7 +123,7 @@ ADD has two forms:
 
 The ADD instruction copies new files, directories or remote file URLs from `<src>` and adds them to the filesystem of the image at the path `<dest>`.
 
-##### COPY
+### COPY
 COPY has two forms:
 
     COPY [--chown=<user>:<group>] <src>... <dest>
@@ -122,18 +131,20 @@ COPY has two forms:
 
 The COPY instruction copies new files or directories from `<src>` and adds them to the filesystem of the container at the path `<dest>`.
 
-##### EXPOSE 暴露端口
+这里的source是相对于Dockerfile的路径，dest目标路径是相对于镜像的路径。
+
+### EXPOSE 暴露端口
     docker run -p 主机端口:容器端口
     docker run -P 所有端口随机映射
 
 This port remapping of 4000:80 demonstrates the difference between EXPOSE within the Dockerfile and what the publish value is set to when running docker run -p.
 In later steps, map port 4000 on the host to port 80 in the container and use http://localhost.
 
-##### Paser Directives
+### Paser Directives
 syntax
 escape
 
-##### Environment Replacement
+### Environment Replacement
 变量替换。declared with the `ENV` statement.
 
     FROM busybox
@@ -142,7 +153,7 @@ escape
     ADD . $foo       # ADD . /bar
     COPY \$foo /quux # COPY $foo /quux
 
-##### .dockerignore
+### .dockerignore
 忽略的目录和文件，类似.gitignore文件。
 
 ## Multi stage build
