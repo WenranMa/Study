@@ -510,3 +510,61 @@ API 接口：
 
 Etcd 提供了一套简单的 HTTP RESTful API，使得集成到各种编程语言中非常容易。
 在实践中，服务提供者通常会使用客户端库（如 Go 的 go.etcd.io/etcd/clientv3）来与 Etcd 交互，这些库封装了注册、发现和健康检查的细节。服务消费者则通过监听 Etcd 的事件或者定期查询来获取服务列表。
+
+
+---
+
+## gRPC
+RPC is a acronym for Remote Procedure Call
+
+### Types of gRPC applications
+
+gRPC applications can be written using 3 types of processing, as follows:
+
+Unary RPCs where the client sends a single request to the server and gets a single response back, just like a normal function call.
+
+`rpc SayHello(HelloRequest) returns (HelloResponse);`
+
+Server streaming RPCs where the client sends a request to the server and gets a stream to read a sequence of messages back. The client reads from the returned stream until there are no more messages. gRPC guarantees message ordering within an individual RPC call.
+
+`rpc LotsOfReplies(HelloRequest) returns (stream HelloResponse);`
+
+Client streaming RPCs where the client writes a sequence of messages and sends them to the server, again using a provided stream. Once the client has finished writing the messages, it waits for the server to read them and return its response. Again gRPC guarantees message ordering within an individual RPC call.
+
+`rpc LotsOfGreetings(stream HelloRequest) returns (HelloResponse);`
+
+Bidirectional streaming RPCs where both sides send a sequence of messages using a read-write stream. The two streams operate independently, so clients and servers can read and write in whatever order they like: for example, the server could wait to receive all the client messages before writing its responses, or it could alternately read a message then write a message, or some other combination of reads and writes. The order of messages in each stream is preserved.
+
+`rpc BidiHello(stream HelloRequest) returns (stream HelloResponse);`
+
+Synch vs. Asynch
+As the name implies, synchronous processing occurs when we have a communication where the client thread is blocked when a message is sent and is been processed.
+
+Asynchronous processing occurs when we have this communication with the processing been done by other threads, making the whole process been non-blocking.
+
+On gRPC we have both styles of processing supported, so it is up to the developer to use the better approach for his solutions.
+
+Deadlines & timeouts
+A deadline stipulates how much time a gRPC client will wait on a RPC call to return before assuming a problem has happened. On the server’s side, the gRPC services can query this time, verifying how much time it has left.
+
+If a response couldn’t be received before the deadline is met, a DEADLINE_EXCEEDED error is thrown and the RPC call is terminated.
+
+RPC termination
+On gRPC, both clients and servers decide if a RPC call is finished or not locally and independently. This means that a server can decide to end a call before a client has transmitted all their messages and a client can decide to end a call before a server has transmitted one or all of their responses.
+
+This point is important to remember specially when working with streams, in a sense that logic must pay attention to possible RPC terminations when treating sequences of messages.
+
+Channels
+Channels are the way a client stub can connect with gRPC services on a given host and port. Channels can be configured specific by client, such as turning message compression on and off for a specific client.
+
+Metadata
+Metadata is information about a particular RPC call (such as authentication details) in the form of a list of key-value pairs, where the keys are strings and the values are typically strings, but can be binary data. Metadata is opaque to gRPC itself - it lets the client provide information associated with the call to the server and vice versa.
+
+Access to metadata is language dependent.
+
+### Protocol Buffer
+
+The first step when working with protocol buffers is to define the structure for the data you want to serialize in a proto file: this is an ordinary text file with a .proto extension. Protocol buffer data is structured as messages, where each message is a small logical record of information containing a series of name-value pairs called fields.
+
+Then, once you’ve specified your data structures, you use the protocol buffer compiler protoc to generate data access classes in your preferred language(s) from your proto definition.
+

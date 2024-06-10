@@ -233,10 +233,9 @@ master构成：Scheduler, Controller Manager, API Server, ETCD.
 
 API Server是核心。是集群控制的唯一入口，是Rest API的核心组件。
 
-Scheduler通过API servert的watch接口监听新建Pod副本信息，并通过调度算法为Pod选择一个合适的Node。
-检索复合Pod要求的Node列表。之后会绑定Pod到Node，然后将状态写入ETCD。
-
 ControllerManager，没中资源都会有相应controller, controller manager就是管理这些controller。
+
+scheduler
 
 ETCD默认与Master在同一个Node上。
 
