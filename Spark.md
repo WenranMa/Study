@@ -615,8 +615,3 @@ scala> df.select(df("name").as("username"), df("age")+ 1).show
 
 ```
 
-
-
-
-
-

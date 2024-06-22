@@ -88,3 +88,49 @@ manageReplicas 是最核心的方法，它会计算 replicaSet 需要创建或�
 - 当更新Deployment时，系统创建了一个新的ReplicaSet，并将其副本数量扩展到1，然后将旧ReplicaSet缩减为2。
 - 之后，系统继续按照相同的更新策略对新旧两个ReplicaSet进行逐个调整。
 - 最后，新的ReplicaSet运行了对应个新版本Pod副本，旧的ReplicaSet副本数量则缩减为0。
+
+
+从 Deployment 到 Pod
+
+1. 请求发送到 kube-api-server
+请求发送到 kube-api-server，然后会进行认证、鉴权、变更、校验等一系列过程，最后将 deployment 的数据持久化存储至 etcd。
+
+
+2. controller manager 处理
+controller manager 组件针对不同的资源对象有不同的处理部分。
+
+针对 Deployment，由于其并不直接管理 Pod，而是 Deployment 管理 ReplicaSet，ReplicaSet 再管理 Pod：
+
+因此其中涉及到 controller manager 中的两个部分：
+
+deployment controller
+replicaset controller
+(1) 先是 deployment controller 监听到 deployment 的创建事件，然后进行相关的处理，最后创建 replicaset。
+
+(2) 然后 replicaset controller 监听到 replicaset 的创建事件，进行相关处理后，最后创建 pod。
+
+3. scheduler 调度
+scheduler 接受到 pod 需要调度的事件后，进行一系列调度逻辑处理，最后选择一个合适的 node 节点，将 pod 绑定到这个节点上（所谓的节点调度在这里只是修改 pod 数据，对其中的 nodeName 进行赋值）。
+
+具体的调度算法比较复杂，涉及强制性调度、亲和与反亲和、污点和容忍、以及硬件资源计算、优先级等等，本文不做展开。
+
+4. 节点 kubelet 处理
+调度完成后，pod 被绑定的 node 节点上的 kubelet 同样通过 kube-api-server 会接受到相应的事件，然后 kubelet 会进行 pod 的创建。
+
+在这个过程中 kubelet 会分别调用 CRI、CNI、CSI：
+
+CRI（Container Runtime Interface）: 容器运行时接口，CRI 插件负责执行拉取镜像、创建、删除容器等操作。CRI 的几种常用插件：
+
+containerd
+CRI-O
+Docker Engine
+
+CNI（Container Network Interface）: 容器网络接口，CNI 插件负责给 pod 分配 IP 地址，确保 pod 能够与集群内的其它 pod 进行通信。CNI 的几种常用插件：
+
+Cilium
+Calico
+
+CSI（Container Storage Interface）: 容器存储接口，CSI 插件负责与外部存储提供者通信，执行卷的附加、挂载等操作。
+所谓的接口其实只是定义了通信的规范或者标准（使用的是 grpc 协议），具体的实现则是交给了插件。
+
+至此，Kubernetes 从创建 deployment 到 pod 运行的全过程就是这样了。

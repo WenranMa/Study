@@ -37,7 +37,6 @@ Minikube是一种可以在本地轻松运行一个单节点Kubernetes群集的�
 
 Kubectl是一个命令行工具，可以使用该工具控制Kubernetes集群管理器，如检查群集资源，创建、删除和更新组件，查看应用程序。
 
-
 ### 6、简述Kubernetes常见的部署方式
 
 常见的Kubernetes部署方式有：
@@ -45,8 +44,6 @@ Kubectl是一个命令行工具，可以使用该工具控制Kubernetes集群管
 - kubeadm，也是推荐的一种部署方式；
 - 二进制；
 - minikube，在本地轻松运行一个单节点Kubernetes群集的工具。
-
-
 
 ### 7、简述Kubernetes如何实现集群管理
 
@@ -62,7 +59,6 @@ Kubernetes作为一个完备的分布式系统支撑平台，其主要优势：
 - 弹性伸缩
 - 负载均衡
 
-
 Kubernetes常见场景：
 
 - 快速部署应用
@@ -70,13 +66,11 @@ Kubernetes常见场景：
 - 无缝对接新的应用功能
 - 节省资源，优化硬件资源的使用
 
-
 Kubernetes相关特点：
 
 - 可移植：支持公有云、私有云、混合云、多重云（multi-cloud）。
 - 可扩展: 模块化,、插件化、可挂载、可组合。
 - 自动化: 自动部署、自动重启、自动复制、自动伸缩/扩展。
-
 
 
 ### 9、简述Kubernetes的缺点或当前的不足之处
@@ -88,7 +82,6 @@ Kubernetes当前存在的缺点（不足）如下：
 - 运行和编译需要很多时间。
 - 它比其他替代品更昂贵。
 - 对于简单的应用程序来说，可能不需要涉及Kubernetes即可满足。
-
 
 
 ### 10、简述Kubernetes相关基础概念
@@ -103,7 +96,6 @@ Kubernetes当前存在的缺点（不足）如下：
 - Service：Service定义了Pod的逻辑集合和访问该集合的策略，是真实服务的抽象。Service提供了一个统一的服务访问入口以及服务代理和发现机制，关联多个相同Label的Pod，用户不需要了解后台Pod是如何运行。
 - Volume：Volume是Pod中能够被多个容器访问的共享目录，Kubernetes中的Volume是定义在Pod上，可以被一个或多个Pod中的容器挂载到某个目录下。
 - Namespace：Namespace用于实现多租户的资源隔离，可将集群内部的资源对象分配到不同的Namespace中，形成逻辑上的不同项目、小组或用户组，便于不同的Namespace在共享使用整个集群的资源的同时还能被分别管理。
-
 
 
 ### 11、简述Kubernetes集群相关组件
@@ -126,7 +118,6 @@ Kubernetes Master控制组件，调度管理整个系统（集群），包含如
 - Pod Autoscaler Controller：实现Pod的自动伸缩，定时获取监控数据，进行策略匹配，当满足条件时执行Pod的伸缩动作。
 
 
-
 ### 12、简述Kubernetes RC的机制
 
 Replication Controller用来管理Pod的副本，保证集群中存在指定数量的Pod副本。当定义了RC并提交至Kubernetes集群中之后，Master节点上的Controller Manager组件获悉，并同时巡检系统中当前存活的目标Pod，并确保目标Pod实例的数量刚好等于此RC的期望值，若存在过多的Pod副本在运行，系统会停止一些Pod，反之则自动创建一些Pod。
@@ -140,12 +131,11 @@ Replica Set和Replication Controller类似，都是确保在任何给定时间�
 kube-proxy运行在所有节点上，它监听apiserver中service和endpoint的变化情况，创建路由规则以提供服务IP和负载均衡功能。简单理解此进程是Service的透明代理兼负载均衡器，其核心功能是将到某个Service的访问请求转发到后端的多个Pod实例上。
 
 
+### 18、简述Kubernetes中什么是静态Pod
 
+静态Pod是由kubelet进行管理的仅存在于特定Node的Pod上，他们不能通过API Server进行管理，无法与ReplicationController、Deployment或者DaemonSet进行关联，并且kubelet无法对他们进行健康检查。
 
-
-### 18、简述Kubernetes中什么是静态Pod -- TBD
-
-静态Pod是由kubelet进行管理的仅存在于特定Node的Pod上，他们不能通过API Server进行管理，无法与ReplicationController、Deployment或者DaemonSet进行关联，并且kubelet无法对他们进行健康检查。静态Pod总是由kubelet进行创建，并且总是在kubelet所在的Node上运行。
+静态Pod的声明和配置文件放置在kubelet监控的本地文件系统目录（通常是/etc/kubernetes/manifests/）中。kubelet会周期性地检查这个目录，并根据其中的.yaml或.json文件来创建或管理Pod实例。静态Pod适用于需要直接控制Pod生命周期且不需要跨节点调度的场景，如运行集群基础服务（如DNS、监控代理等）。
 
 ### 19、简述Kubernetes中Pod可能位于的状态
 
@@ -155,21 +145,36 @@ kube-proxy运行在所有节点上，它监听apiserver中service和endpoint的�
 - Failed：Pod内所有容器均已退出，但至少有一个容器退出为失败状态。
 - Unknown：由于某种原因无法获取该Pod状态，可能由于网络通信不畅导致。
 
+### 20、简述Kubernetes创建一个Pod的主要流程？ 
 
+1. API Server接收请求： 用户通过命令行（如kubectl run）、YAML配置文件或者API调用向Kubernetes API Server提交创建Pod的请求。
 
-### 20、简述Kubernetes创建一个Pod的主要流程？ --- tbd
+2. 验证与准入控制： API Server对请求进行合法性校验，包括JSON/YAML格式、资源配额、安全策略等，并通过准入控制器(Admission Controllers)进一步处理，可能包括默认值设置、Pod安全性策略应用等。
 
-Kubernetes中创建一个Pod涉及多个组件之间联动，主要流程如下：
+3. Pod对象存储： 验证通过后，API Server将Pod的定义存储到etcd中，这是Kubernetes的持久化存储，确保集群状态的一致性。  （Controller-manager通过api-server将pod的配置信息存储到ETCD数据中心中）
 
-- 客户端提交Pod的配置信息（可以是yaml文件定义的信息）到kube-apiserver。
-- Apiserver收到指令后，通知给controller-manager创建一个资源对象。
-- Controller-manager通过api-server将Pod的配置信息存储到etcd数据中心中。
-- Kube-scheduler检测到Pod信息会开始调度预选，会先过滤掉不符合Pod资源配置要求的节点，然后开始调度调优，主要是挑选出更适合运行Pod的节点，然后将Pod的资源配置单发送到Node节点上的kubelet组件上。
-- Kubelet根据scheduler发来的资源配置单运行Pod，运行成功后，将Pod的运行信息返回给scheduler，scheduler将返回的Pod运行状况的信息存储到etcd数据中心。
+4. 调度决策： 调度器(Scheduler)从etcd中读取待调度的Pod列表，根据资源需求、硬件约束、数据局部性等因素选择最适合运行该Pod的节点(Node)。
 
+5. Pod绑定： 选定节点后，调度器在etcd中创建一个绑定对象(Binding)，该对象指定了Pod到具体节点的映射关系。
+
+6. kubelet接收任务： 被选中的节点上的kubelet通过监听API Server的更新，发现新的Pod绑定信息，并开始准备创建Pod。
+
+7. CRI（容器运行时接口）调用： kubelet通过容器运行时接口(CRI)与底层容器运行时（如Docker、containerd）通信，准备运行Pod中的容器。这包括下载容器镜像、设置网络（通过CNI插件）、挂载存储卷等。
+
+8. 容器创建与启动： 容器运行时根据kubelet的指令创建容器，并启动它们。每个容器的网络被配置，存储卷被挂载，环境变量被设定。
+
+9. 初始化容器与主容器： 如果Pod定义中有初始化容器(Init Containers)，它们会先于主应用容器启动，并且必须成功退出后，主容器才会启动。
+
+10. 健康检查： kubelet根据Pod定义中的Liveness Probe和Readiness Probe配置，定期检查容器的健康状态和就绪状态，并据此决定是否重启容器或标记Pod为就绪。
+
+11. 状态更新： Pod及其容器的状态变化会被kubelet汇报回API Server，用户可以通过kubectl get pods等命令查看这些状态信息。
+
+12. 服务发现与负载均衡（可选）： 如果Pod是服务(Service)的一部分，Kubernetes会创建Endpoint对象，将Pod的IP地址和端口加入到Service的后端列表中，实现服务发现和负载均衡。
 
 
 ### 21、简述Kubernetes中Pod的重启策略
+
+可以通过命令“kubectl explain pod.spec”查看pod的重启策略。（restartPolicy字段）
 
 Pod重启策略（RestartPolicy）应用于Pod内的所有容器，并且仅在Pod所处的Node上由kubelet进行判断和重启操作。当某个容器异常退出或者健康检查失败时，kubelet将根据RestartPolicy的设置来进行相应操作。
 
@@ -188,18 +193,6 @@ Pod的重启策略包括Always、OnFailure和Never，默认值为Always。
 - Job：OnFailure或Never，确保容器执行完成后不再重启；
 - kubelet：在Pod失效时重启，不论将RestartPolicy设置为何值，也不会对Pod进行健康检查。
 
-
-
-### 22、简述Kubernetes中Pod的健康检查方式
-
-对Pod的健康检查可以通过两类探针来检查：LivenessProbe和ReadinessProbe。
-
-- LivenessProbe探针：用于判断容器是否存活（running状态），如果LivenessProbe探针探测到容器不健康，则kubelet将杀掉该容器，并根据容器的重启策略做相应处理。若一个容器不包含LivenessProbe探针，kubelet认为该容器的LivenessProbe探针返回值用于是“Success”。
-- ReadineeProbe探针：用于判断容器是否启动完成（ready状态）。如果ReadinessProbe探针探测到失败，则Pod的状态将被修改。Endpoint Controller将从Service的Endpoint中删除包含该容器所在Pod的Eenpoint。
-- startupProbe探针：启动检查机制，应用一些启动缓慢的业务，避免业务长时间启动而被上面两类探针kill掉。
-
-
-
 ### 23、简述Kubernetes Pod的LivenessProbe探针的常见方式
 
 kubelet定期执行LivenessProbe探针来诊断容器的健康状态，通常有以下三种方式：
@@ -207,7 +200,6 @@ kubelet定期执行LivenessProbe探针来诊断容器的健康状态，通常有
 - ExecAction：在容器内执行一个命令，若返回码为0，则表明容器健康。
 - TCPSocketAction：通过容器的IP地址和端口号执行TCP检查，若能建立TCP连接，则表明容器健康。
 - HTTPGetAction：通过容器的IP地址、端口号及路径调用HTTP Get方法，若响应的状态码大于等于200且小于400，则表明容器健康。
-
 
 
 ### 24、简述Kubernetes Pod的常见调度方式
@@ -225,37 +217,18 @@ Kubernetes中，Pod通常是容器的载体，主要有如下常见调度方式�
   - Toleration：为Pod的属性，表示Pod能容忍（运行）标注了Taint的Node。
 
 
-
-### 25、简述Kubernetes初始化容器（init container） --- TBD
+### 25、简述Kubernetes初始化容器（init container）
 
 init container的运行方式与应用容器不同，它们必须先于应用容器执行完成，当设置了多个init container时，将按顺序逐个运行，并且只有前一个init container运行成功后才能运行后一个init container。当所有init container都成功运行后，Kubernetes才会初始化Pod的各种信息，并开始创建和运行应用容器。
 
 
-### 28、简述Kubernetes DaemonSet类型的资源特性
-
-DaemonSet资源对象会在每个Kubernetes集群中的节点上运行，并且每个节点只能运行一个Pod，这是它和Deployment资源对象的最大也是唯一的区别。因此，在定义yaml文件中，不支持定义replicas。
-
-它的一般使用场景如下：
-
-- 在去做每个节点的日志收集工作。
-- 监控每个节点的的运行状态。
-
-
-### 29、简述Kubernetes自动扩容机制  --- TBD
+### 29、简述Kubernetes自动扩容机制
 
 Kubernetes使用Horizontal Pod Autoscaler（HPA）的控制器实现基于CPU使用率进行自动Pod扩缩容的功能。HPA控制器周期性地监测目标Pod的资源性能指标，并与HPA资源对象中的扩缩容条件进行对比，在满足条件时对Pod副本数量进行调整。
 
 Kubernetes中的某个Metrics Server（Heapster或自定义Metrics Server）持续采集所有Pod副本的指标数据。HPA控制器通过Metrics Server的API（Heapster的API或聚合API）获取这些数据，基于用户定义的扩缩容规则进行计算，得到目标Pod副本数量。
 
 当目标Pod副本数量与当前副本数量不同时，HPA控制器就向Pod的副本控制器（Deployment、RC或ReplicaSet）发起scale操作，调整Pod的副本数量，完成扩缩容操作。
-
-### 35、简述Kubernetes镜像的下载策略
-
-Kubernetes的镜像下载策略有三种：Always、Never、IFNotPresent。
-
-- Always：镜像标签为latest时，总是从指定的仓库中获取镜像。
-- Never：禁止从仓库中下载镜像，也就是说只能使用本地镜像。
-- IfNotPresent：仅当本地没有对应镜像时，才从目标仓库中下载。默认的镜像下载策略是：当镜像标签是latest时，默认策略是Always；当镜像标签是自定义时（也就是标签不是latest），那么默认策略是IfNotPresent。
 
 
 ### 36、简述Kubernetes的负载均衡器
@@ -273,7 +246,6 @@ Kubernetes API Server作为集群的核心，负责集群各功能模块之间�
 如kube-controller-manager进程与API Server的交互：kube-controller-manager中的Node Controller模块通过API Server提供的Watch接口实时监控Node的信息，并做相应处理。
 
 如kube-scheduler进程与API Server的交互：Scheduler通过API Server的Watch接口监听到新建Pod副本的信息后，会检索所有符合该Pod要求的Node列表，开始执行Pod调度逻辑，在调度成功后将Pod绑定到目标节点上。
-
 
 ### 42、简述Kubernetes如何保证集群的安全性 --- TBD
 
@@ -303,7 +275,6 @@ Kubernetes通过一系列机制来实现集群的安全控制，主要有如下�
 - NamespaceExists：观察所有的请求，如果请求尝试创建一个不存在的namespace，则这个请求被拒绝。
 
 
-
 ### 44、简述Kubernetes RBAC及其特点（优势） --- TBD
 
 RBAC是基于角色的访问控制，是一种基于个人用户的角色来管理对计算机或网络资源的访问的方法。
@@ -313,7 +284,6 @@ RBAC是基于角色的访问控制，是一种基于个人用户的角色来管�
 - 对集群中的资源和非资源权限均有完整的覆盖。
 - 整个RBAC完全由几个API对象完成， 同其他API对象一样， 可以用kubectl或API进行操作。
 - 可以在运行时进行调整，无须重新启动API Server。
-
 
 
 ### 45、简述Kubernetes Secret作用
@@ -329,7 +299,6 @@ Secret对象，主要作用是保管私密数据，比如密码、OAuth Tokens�
 - 在Docker镜像下载时使用，通过指定Pod的spc.ImagePullSecrets来引用它。
 
 
-
 ### 47、简述Kubernetes PodSecurityPolicy机制 --- TBD
 
 Kubernetes PodSecurityPolicy是为了更精细地控制Pod对资源的使用方式以及提升安全策略。在开启PodSecurityPolicy准入控制器后，Kubernetes默认不允许创建任何Pod，需要创建PodSecurityPolicy策略和相应的RBAC授权策略（Authorizing Policies），Pod才能创建成功。
@@ -343,7 +312,6 @@ Kubernetes PodSecurityPolicy是为了更精细地控制Pod对资源的使用方�
 - 用户和组：设置运行容器的用户ID（范围）或组（范围）。
 - 提升权限：AllowPrivilegeEscalation：设置容器内的子进程是否可以提升权限，通常在设置非root用户（MustRunAsNonRoot）时进行设置。
 - SELinux：进行SELinux的相关配置。
-
 
 
 ### 49、简述Kubernetes网络模型
@@ -368,22 +336,26 @@ CNI提供了一种应用容器的插件化网络解决方案，定义对容器�
 
 为实现细粒度的容器间网络访问隔离策略，Kubernetes引入Network Policy。
 
+Pod层
+
 Network Policy的主要功能是对Pod间的网络通信进行限制和准入控制，设置允许访问或禁止访问的客户端Pod列表。Network Policy定义网络策略，配合策略控制器（Policy Controller）进行策略的实现。
+
+选择器（selectors）：to和from字段使用标签选择器来确定策略应该应用到哪些Pod。这使得策略既可以精确到单个Pod，也可以宽泛到匹配一组具有相同标签的Pod。
+
+默认策略：如果没有明确的网络策略应用到Pod，Kubernetes遵循默认策略，这通常是允许所有流量。但某些网络插件可能实现默认拒绝所有流量，以增强安全性。
 
 ### 52、简述Kubernetes网络策略原理 --- TBD
 
 Network Policy的工作原理主要为：policy controller需要实现一个API Listener，监听用户设置的Network Policy定义，并将网络访问规则通过各Node的Agent进行实际设置（Agent则需要通过CNI网络插件实现）。
 
-### 53、简述Kubernetes中flannel的作用 --- TBD
+### 53、简述Kubernetes中flannel的作用
 
 Flannel可以用于Kubernetes底层网络的实现，主要作用有：
 
 - 它能协助Kubernetes，给每一个Node上的Docker容器都分配互相不冲突的IP地址。
 - 它能在这些IP地址之间建立一个覆盖网络（Overlay Network），通过这个覆盖网络，将数据包原封不动地传递到目标容器内。
 
-
-
-### 54、简述Kubernetes Calico网络组件实现原理
+### 54、简述Kubernetes Calico网络组件实现原理 -- TBD
 
 Calico是一个基于BGP的纯三层的网络方案，与OpenStack、Kubernetes、AWS、GCE等云平台都能够良好地集成。
 
@@ -391,26 +363,10 @@ Calico在每个计算节点都利用Linux Kernel实现了一个高效的vRouter�
 
 Calico保证所有容器之间的数据流量都是通过IP路由的方式完成互联互通的。Calico节点组网时可以直接利用数据中心的网络结构（L2或者L3），不需要额外的NAT、隧道或者Overlay Network，没有额外的封包解包，能够节约CPU运算，提高网络效率。
 
-### 55、简述Kubernetes共享存储的作用
+### 55、简述Kubernetes共享存储的作用 -- TBD
 
 Kubernetes对于有状态的容器应用或者对数据需要持久化的应用，因此需要更加可靠的存储来保存应用产生的重要数据，以便容器应用在重建之后仍然可以使用之前的数据。因此需要使用共享存储。
 
-### 56、简述Kubernetes数据持久化的方式有哪些
-
-Kubernetes通过数据持久化来持久化保存重要数据，常见的方式有：
-
-- EmptyDir（空目录）：没有指定要挂载宿主机上的某个目录，直接由Pod内保部映射到宿主机上。类似于docker中的manager volume。
-- 场景：
-  - 只需要临时将数据保存在磁盘上，比如在合并/排序算法中；
-  - 作为两个容器的共享存储。
-- 特性：
-  - 同个pod里面的不同容器，共享同一个持久化目录，当pod节点删除时，volume的数据也会被删除。
-  - emptyDir的数据持久化的生命周期和使用的pod一致，一般是作为临时存储使用。
-- Hostpath：将宿主机上已存在的目录或文件挂载到容器内部。类似于docker中的bind mount挂载方式。
-- 特性：增加了Pod与节点之间的耦合。
-
-
-PersistentVolume（简称PV）：如基于NFS服务的PV，也可以基于GFS的PV。它的作用是统一数据持久化目录，方便管理。
 
 ### 57、简述Kubernetes PV和PVC
 
@@ -428,14 +384,12 @@ PVC则是用户对存储资源的一个“申请”。
 - Failed：自动资源回收失败。
 
 
-
 ### 59、简述Kubernetes所支持的存储供应模式
 
 Kubernetes支持两种资源的存储供应模式：静态模式（Static）和动态模式（Dynamic）。
 
 - 静态模式：集群管理员手工创建许多PV，在定义PV时需要将后端存储的特性进行设置。
 - 动态模式：集群管理员无须手工创建PV，而是通过StorageClass的设置对后端存储进行描述，标记为某种类型。此时要求PVC对存储的类型进行声明，系统将自动完成PV的创建及与PVC的绑定。
-
 
 
 ### 60、简述Kubernetes CSI模型 --- TBD
@@ -448,7 +402,6 @@ CSI包括CSI Controller和CSI Node：
 - CSI Node的主要功能是对主机（Node）上的Volume进行管理和操作。
 
 
-
 ### 61、简述Kubernetes Worker节点加入集群的过程
 
 通常需要对Worker节点进行扩容，从而将应用系统进行水平扩展。主要过程如下：
@@ -457,7 +410,6 @@ CSI包括CSI Controller和CSI Node：
 - 然后配置kubelet和kubeproxy的启动参数，将Master URL指定为当前Kubernetes集群Master的地址，最后启动这些服务；
 - 通过kubelet默认的自动注册机制，新的Worker将会自动加入现有的Kubernetes集群中；
 - Kubernetes Master在接受了新Worker的注册之后，会自动将其纳入当前集群的调度范围。
-
 
 
 ### 62、简述Kubernetes Pod如何实现对节点的资源控制
@@ -489,7 +441,6 @@ EFK是 Elasticsearch、Fluentd 和 Kibana 的组合，其各组件功能如下�
 - Fluentd：负责从 Kubernetes 搜集日志，每个Node节点上面的Fluentd监控并收集该节点上面的系统日志，并将处理过后的日志信息发送给Elasticsearch；
 - Kibana：提供了一个 Web GUI，用户可以浏览和搜索存储在 Elasticsearch 中的日志。
 
-
 通过在每台Node上部署一个以DaemonSet方式运行的Fluentd来收集每台Node上的日志。Fluentd将Docker日志目录/var/lib/docker/containers和/var/log目录挂载到Pod中，然后Pod会在Node节点的/var/log/pods目录中创建新的目录，可以区别不同的容器日志输出，该目录下有一个日志文件链接到/var/lib/docker/contianers目录下的容器日志输出。
 
 ### 66、简述Kubernetes如何进行优雅的节点关机维护
@@ -517,8 +468,6 @@ Helm中通常每个包称为一个Chart，一个Chart是一个目录（一般情
 - 分发和复用一套应用模板；
 - 将应用的一系列资源当做一个软件包管理。
 - 对于应用发布者而言，可以通过 Helm 打包应用、管理应用依赖关系、管理应用版本并发布应用到软件仓库。
-
-
 
 对于使用者而言，使用Helm后不用需要编写复杂的应用部署文件，可以以简单的方式在Kubernetes上查找、安装、升级、回滚、卸载应用程序。
 
@@ -684,16 +633,7 @@ K8s的镜像下载策略有三种：Always、Never、IFNotPresent；
 
 - Running：Pod所需的容器已经被成功调度到某个节点，且已经成功运行，
 - Pending：APIserver创建了pod资源对象，并且已经存入etcd中，但它尚未被调度完成或者仍然处于仓库中下载镜像的过程
-
 - Unknown：APIserver无法正常获取到pod对象的状态，通常是其无法与所在工作节点的kubelet通信所致。
-
-### 76、pod的重启策略是什么？
-
-答：可以通过命令“kubectl explain pod.spec”查看pod的重启策略。（restartPolicy字段）
-
-- Always：但凡pod对象终止就重启，此为默认策略。
-- OnFailure：仅在pod对象出现错误时才重启
-- Never：不重启pod对象
 
 ### 77、Service这种资源对象的作用是什么？
 
@@ -815,16 +755,6 @@ metadata:
 
 - Unknown：表示无法读取Pod状态，通常是kube-controller-manager无法与Pod通信。
 
-### 86、创建一个pod的流程是什么？
-
-- 客户端提交Pod的配置信息（可以是yaml文件定义好的信息）到kube-apiserver；
-- Apiserver收到指令后，通知给controller-manager创建一个资源对象；
-
-- Controller-manager通过api-server将pod的配置信息存储到ETCD数据中心中；
-- Kube-scheduler检测到pod信息会开始调度预选，会先过滤掉不符合Pod资源配置要求的节点，然后开始调度调优，主要是挑选出更适合运行pod的节点，然后将pod的资源配置单发送到node节点上的kubelet组件上。
-
-- Kubelet根据scheduler发来的资源配置单运行pod，运行成功后，将pod的运行信息返回给scheduler，scheduler将返回的pod运行状况的信息存储到etcd数据中心。
-
 ### 87、删除一个Pod会发生什么事情？
 
 答：Kube-apiserver会接受到用户的删除指令，默认有30秒时间等待优雅退出，超过30秒会被标记为死亡状态，此时Pod的状态Terminating，kubelet看到pod标记为Terminating就开始了关闭Pod的工作；
@@ -833,11 +763,8 @@ metadata:
 
 - pod从service的endpoint列表中被移除；
 - 如果该pod定义了一个停止前的钩子，其会在pod内部被调用，停止钩子一般定义了如何优雅的结束进程；
-
 - 进程被发送TERM信号（kill -14）
 - 当超过优雅退出的时间后，Pod中的所有进程都会被发送SIGKILL信号（kill -9）。
-
-
 
 ### 91、k8s数据持久化的方式有哪些？
 
@@ -885,6 +812,19 @@ PS：这里的回收策略指的是在PV被删除后，在这个PV下所存储�
 
 若需使用PV，那么还有一个重要的概念：PVC，PVC是向PV申请应用所需的容量大小，K8s集群中可能会有多个PV，PVC和PV若要关联，其定义的访问模式必须一致。定义的storageClassName也必须一致，若群集中存在相同的（名字、访问模式都一致）两个PV，那么PVC会选择向它所需容量接近的PV去申请，或者随机申请。
 
+
+### Pause容器是什么
+Pause容器，也称为Infra容器，是Kubernetes架构中的一个特殊容器，每个Pod中都会包含一个这样的容器。其主要作用和特性包括：
+
+命名空间共享: Pause容器负责初始化Pod的网络、IPC、PID以及其他Linux命名空间。这样，Pod内的所有容器就可以共享这些命名空间，实现容器间的通信和资源共享，而无需每个容器单独配置这些设置。
+
+僵尸进程回收: 作为Pod内第一个启动的进程（PID为1），Pause容器负责接管其他容器的进程，当这些容器的进程退出时，Pause容器能够回收它们的僵尸进程，避免了孤儿进程的问题。
+
+基础运行环境: Pause容器本身非常小且简单，通常不执行任何应用逻辑，仅提供一个基本的运行环境，使得资源消耗极低，这对于优化集群资源利用是非常有益的。
+
+父容器角色: Pause容器充当Pod内所有应用容器的“父容器”，提供了一个统一的、一致的执行上下文给Pod内的所有容器，屏蔽了底层基础设施的差异，简化了多容器协作的复杂度。
+
+总之，Pause容器是Kubernetes设计中不可或缺的一部分，它通过提供共享资源和管理基础结构的任务，促进了Pod内部容器的高效、协调工作。
 
 
 ### 其他

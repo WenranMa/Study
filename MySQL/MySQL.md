@@ -973,3 +973,66 @@ UNIQUE 和 PRIMARY KEY 约束均为列或列集合提供了唯一性的保证。
 而UNIQUE KEY 对列没有此要求 
 
 2，一个表只能有一个PRIMARY KEY，但可以有多个UNIQUE KEY 
+
+
+
+
+
+### 隔离级别演示：
+
+ CREATE TABLE `student` (
+   `id` bigint(20) NOT NULL COMMENT '学生编号',
+   `name` varchar(20) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT '' COMMENT '学生姓名',
+   `birth` varchar(20) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT '' COMMENT '出生年月',
+   `sex` varchar(10) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT '' COMMENT '学生性别',
+   PRIMARY KEY (`id`)
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='学生表';
+ 
+ insert  into `student`(`id`,`name`,`birth`,`sex`) values 
+ (1,'赵雷','1990-01-01','男'),
+ (2,'钱电','1990-12-21','男'),
+ (3,'孙风','1990-05-20','男'),
+ (4,'李云','1990-08-06','男');
+
+ 
+1. 读未提交（Read Uncommitted）
+　　在该隔离级别，所有事务都可以看到其他事务未提交的执行结果。读取未提交的数据，也被称之为脏读。本隔离级别很少用于实际应用，因为它的性能也不比其他级别好多少。
+
+　　演示：将事务T1设置为read uncommitted
+
+![iso1](/img/mysql_iso_01.png)
+
+　　经过上面的实验可以得出结论，T1在T2修改和插入操作前后两次读取的数据不一致，当T2未提交时，T1读到了T2未提交的数据，即称之为脏读，该实验同时也出现了幻读和不可重复读。
+
+2. 读已提交（Read Committed）
+　　在一个事务中，可以读取到其他事务已经提交的数据，比如事务T1的两条相同的查询语句之间，被事务T2执行修改数据并提交，那么事务T1第二次读取到了T2已提交的数据，先后两次读取的数据不一致，这种读取也就叫做不可重复读，因为两次同样的查询可能会得到不一样的结果。
+
+　　演示：将事务T1设置为Read Committed
+
+![iso2](/img/mysql_iso_02.png)
+
+ 
+　　经过上面的实验可以得出结论，读已提交解决了脏读现象，但是前后两次读取的数据不一致，所以依然存在不可重复读和幻读的现象。
+3. 可重复读（Repeatable Read）
+　　MySQL默认的隔离级别，在一个事务中，直到事务结束前，都可以反复读取到事务最开始时读取到的数据，并一直不会发生变化，避免了脏读、不可重复读现象，但是它还是无法解决幻读问题。
+
+　　简单的说，幻读指当用户读取某一范围的数据行时，另一个事务又在该范围内插入了新行，当用户再读取该范围的数据行时，会读取到新的“幻影” 行。InnoDB和Falcon存储引擎通过多版本并发控制（MVCC，Multiversion Concurrency Control）机制解决了该问题。
+
+　　演示：将事务T1设置为Repeatable Read
+
+![iso3](/img/mysql_iso_03.png)
+
+ 　　经过上面的实验可以得出结论，不论是在T2对数据更新和是否提交事务的前后，T1每次读取的数据都是一致的。但是仔细地同学会发现，在可重复读的级别下，事务T2插入了一条新的数据，但是T1却并未出现幻读地情况。按照上面地不同的隔离级别会引发的问题对照表中的描述，可重复读是会出现幻读的，这又是怎么回事呢。这里需要提到一点，多版本并发控制(Multi-Version Concurrency Control, MVCC)这样一种机制（知识点，要考！！本篇不做详解），它解决了插入情况下的幻读，但是下面的修改操作依旧存在幻读问题。
+
+![iso4](/img/mysql_iso_04.png)
+
+
+　　从上面的实验可以发现，T1在不知道还有其他事务干扰的情况下进行修改操作，不出意外的情况下应该更新第一次读取到的4条数据，但是最后却查出了5条被更新的记录，此时即发生了幻读，将新读取（幻读）出来的一条数据也同时更新了。
+
+4. 可串行化（Serializable）
+　　这是最高的隔离级别，它强制事务串行执行，使之不可能相互冲突，避免了前面说的幻读现象，简单来说，它会在读取的每一行数据上都加锁，所以可能会导致大量的超时和锁竞争，一般不推荐使用。
+
+![iso5](/img/mysql_iso_05.png)
+
+
+　　从上面的实验可以发现，当两个事务并发操作同一份数据时，必然会有一个事务进入等待状态，直到另外的事务结束才能继续执行。
