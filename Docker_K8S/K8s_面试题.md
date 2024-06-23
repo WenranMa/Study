@@ -344,7 +344,9 @@ Network Policy的主要功能是对Pod间的网络通信进行限制和准入控
 
 默认策略：如果没有明确的网络策略应用到Pod，Kubernetes遵循默认策略，这通常是允许所有流量。但某些网络插件可能实现默认拒绝所有流量，以增强安全性。
 
-### 52、简述Kubernetes网络策略原理 --- TBD
+流量控制
+
+### 52、简述Kubernetes网络策略原理
 
 Network Policy的工作原理主要为：policy controller需要实现一个API Listener，监听用户设置的Network Policy定义，并将网络访问规则通过各Node的Agent进行实际设置（Agent则需要通过CNI网络插件实现）。
 
