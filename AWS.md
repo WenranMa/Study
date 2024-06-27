@@ -2,8 +2,6 @@
 
 AWS Identity and Access Management (IAM) is a web service that helps you securely control access to AWS resources. You use IAM to control who is authenticated (signed in) and authorized (has permissions) to use resources.
 
-
-
 ## EC2
     可以理解为虚拟机。
     上线代码方式：推荐Docker
@@ -57,7 +55,6 @@ VPC 网络安全组标志 VPC 中的哪些流量可以发往 EC2 实例或从 EC
 •实例 (i-67890) 的安全组 (sg-abcde) 允许来自 443 端口的 TCP 流量•来自 IP 10.0.1.123 22 端口的请求不被允许通过•来自 443 端口的请求被允许通过
 
 
-
 ### IAM Policy
 To allow IAM users to create or modify resources and perform tasks, you must create IAM policies that grant IAM users permission to use the specific resources and API actions they'll need, and then attach those policies to the IAM users or groups that require those permissions.
 
@@ -72,8 +69,6 @@ cloudwatch
 
 ### Key pair
 A key pair, consisting of a private key and a public key, is a set of security credentials that you use to prove your identity when connecting to an instance. Amazon EC2 stores the public key, and you store the private key. You use the private key, instead of a password, to securely access your instances.
-
-
 
 
 ## RDS
@@ -111,8 +106,5 @@ NAT 网关是位于公有子网的一个设备，负责接收从私有子网发�
 
 
 •NAT 网关位于公有子网中•从私有子网发出对某个公网地址的请求•根据路由表规则，请求数据包被转发到 NAT 网关•NAT 网关将数据包转发出去
-
-
-
 
 Certificate Management

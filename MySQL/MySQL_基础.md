@@ -515,48 +515,6 @@ from (
 group by user_name
 ```
 
-## Mysql 数据库性能分析工具简介
-### explain
-`explain [format=JSON | TREE] select * from demo_table where id=1;`
-
-mysql 中有专门负责优化 select 语句的优化器模块，主要功能：通过计算分析系统中收集到的统计信息，为客户端请求的 Query 提供它认为最优的执行计划(它认为最优的数据检索方式不一定是 DBA 认为最优的，这部分最耗费时间)。
-
-mysql 5.6.3 以前 explain 只能分析 select 语句，5.6.3 之后就可以分析 select、update、delete
-
-explain 语句输出的各个列的含义如下：
-
-- id：代表查询执行中的执行顺序标识号和执行优先级
-- select_type：select 关键字对于的查询类型
-- table：表名
-- partitions：匹配的分区信息，代表分区表的命中情况，非分区表该项为 NULL。
-- type：针对单表的访问方法，常见值如下(从好到坏)：
-	- system：当表中只有一条记录并且该表使用的存储引擎的统计数据时精确的(如：MyISAM、Memory)，那么对该表的访问方法就是 system
-	- const：当我们根据主键或唯一索引列与常数进行等值匹配时，对单表的访问方法就是 const
-	- eq_ref：在连接查询时，如果被驱动表是通过主键或唯一二级索引等值匹配的方式进行访问的(如果该主键或唯一二级索引时联合索引的话，所有的索引列都必须进行等值比较)，则对该被驱动表的访问方法就是 eq_ref。
-	- ref：当通过普通二级索引与常量进行等值匹配时来查询某个表，那么该表的访问方法就是 ref。
-	- ref_or_null：当对普通二级索引进行等值匹配查询，该索引列的值也可以时 null 值时，那么对该表的访问方法就可能是 ref_or_null。
-	- index_merge：单表访问方法时在某些场景下可以使用 Intersection、Union、Sort-Union 这三种索引合并的方式来执行，那么对该表的访问方法就是 index_merge。
-	- unique_subquery：针对在一些包含 in 子查询的查询语句中，如果查询优化器决定将 in 子查询转换为 exists 子查询，且子查询可以使用到主键进行等值匹配的话，那么该子查询执行计划的类型就是 unique_subquery。
-	- range：如果使用索引获取某些范围区间的记录，那么就可能使用到 range 访问方法。
-	- index：当我们可以使用索引覆盖，但需要扫描圈闭的索引记录时，该表的访问方法就是 index。
-	- ALL：全表扫描
-		sql 性能优化的目标至少要达到 range 级别
-- possible_keys：可能用到的索引
-- key：实际用到的索引
-- key_len：实际使用到的索引长度(即字节数)，主要针对于联合索引有一定参考意义。
-- ref：当使用索引列等值查询时，与索引列进行等值匹配的对象信息。
-- rows：预估的需要读取的记录条数，该数值越小越好
-- filtered：某个经过搜索条件过滤后剩余记录数的百分比，该数值越大越好
-extra：额外信息，包含不适合在其他列中显示但十分重要的信息。我们可以通过这些信息来更准确的理解 mysql 到底将如何执行给定的查询语句。
-mysql 5.7 以前的版本总，要想显示 partitions 需要使用 explain partitions 命令，想要显示 filtered 需要使用 explain extended 命令。在 5.7 版本后，默认显示中就包含了 partitions 和 filtered 信息。
-
-注意：
-
-explain 不考虑各种 Cache
-explain 不能显示 mysql 在执行查询时优化器所做的工作
-explain 不会告诉你关于触发器、存储过程的信息或用户自定义函数时对查询的影响情况
-部分统计信息时估算的，并非精确值
-
 ###  类型转换
 在MySQL中，类型转换通常用于在不同数据类型之间改变数据的表示形式。以下是一些主要的类型转换方法：
 
