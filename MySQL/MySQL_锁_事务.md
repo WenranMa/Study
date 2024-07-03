@@ -80,7 +80,7 @@ mysql 中有一个系统变量autocommit(默认值 ON)，默认请情况下，�
 - 提交的(committed)：当一个处在部分提交的状态的事务将修改过的数据都同步到磁盘上之后，我们就可以说该事务处在了提交的状态。
 
 一个基本的状态转换图如下所示：
-![image.png](https://cdn.nlark.com/yuque/0/2022/png/22219483/1655343228326-9c236f52-d4e0-4fe7-84c9-9ce989e13e2e.png#averageHue=%23fbfbfb&clientId=u93f3805a-794b-4&crop=0&crop=0&crop=1&crop=1&from=paste&height=404&id=ue26b1dc2&margin=%5Bobject%20Object%5D&name=image.png&originHeight=404&originWidth=555&originalType=binary&ratio=1&rotation=0&showTitle=false&size=57775&status=done&style=none&taskId=u7b06426a-2d47-4624-8efa-c347eff5066&title=&width=555)
+![image.png](../img/mysql_states.png)
 
 ## 5. 并发的问题
 
@@ -302,7 +302,8 @@ mysql> show variables like '%innodb_log_buffer_size%';
 
 ### redo的整体流程
 以一个更新事务为例，redo log 流转过程，如下图所示：
-![image.png](https://cdn.nlark.com/yuque/0/2022/png/22219483/1655385880949-8b99c805-e7fe-48f5-90b6-45b5575da558.png#averageHue=%23f8f9f6&clientId=u3fe4f8a9-affe-4&crop=0&crop=0&crop=1&crop=1&from=paste&height=237&id=ub6795cbc&margin=%5Bobject%20Object%5D&name=image.png&originHeight=237&originWidth=776&originalType=binary&ratio=1&rotation=0&showTitle=false&size=85093&status=done&style=none&taskId=u4461b7e8-dc60-498d-964a-ed6fa9a0e09&title=&width=776)
+![image.png](../img/mysql_redo_log.png) 
+
 1. 先将原始数据从磁盘中读入内存中来，修改数据的内存拷贝
 2. 生成一条重做日志并写入redo log buffer，记录的是数据被修改后的值
 3. 当事务commit时，将redo log buffer中的内容刷新到 redo log file，对 redo log file采用追加写的方式
@@ -345,16 +346,12 @@ mysql> show variables like 'innodb_undo_logs';
 
 2. 回滚段与事务
    1. 每个事务只会使用一个回滚段，一个回滚段在同一时刻可能会服务于多个事务。
-   2. 当一个事务开始的时候，会制定一个回滚段，在事务进行的过程中，当数据被修改时，原始的数
-据会被复制到回滚段。
-   3. 在回滚段中，事务会不断填充盘区，直到事务结束或所有的空间被用完。如果当前的盘区不够
-用，事务会在段中请求扩展下一个盘区，如果所有已分配的盘区都被用完，事务会覆盖最初的盘
-区或者在回滚段允许的情况下扩展新的盘区来使用。
-   4. 回滚段存在于undo表空间中，在数据库中可以存在多个undo表空间，但同一时刻只能使用一个
-undo表空间。
+   2. 当一个事务开始的时候，会制定一个回滚段，在事务进行的过程中，当数据被修改时，原始的数据会被复制到回滚段。
+   3. 在回滚段中，事务会不断填充盘区，直到事务结束或所有的空间被用完。如果当前的盘区不够用，事务会在段中请求扩展下一个盘区，如果所有已分配的盘区都被用完，事务会覆盖最初的盘区或者在回滚段允许的情况下扩展新的盘区来使用。
+   4. 回滚段存在于undo表空间中，在数据库中可以存在多个undo表空间，但同一时刻只能使用一个undo表空间。
    5. 当事务提交时，InnoDB存储引擎会做以下两件事情：
-将undo log放入列表中，以供之后的purge操作
-判断undo log所在的页是否可以重用，若可以分配给下个事务使用
+将undo log放入列表中，以供之后的purge操作判断undo log所在的页是否可以重用，若可以分配给下个事务使用
+
 3. 回滚段中的数据分类	
    1. 未提交的回滚数据(uncommitted undo information)
    2. 已经提交但未过期的回滚数据(committed undo information)
@@ -389,12 +386,14 @@ binlog 日志有三种记录格式
 指定为 row 时, 记录的内容包含了操作的具体数据, 解决了 statement 格式的问题, 但是有数据的存在说明需要空间占用, 恢复与同步时会更消耗 IO 资源, 影响执行速度.
 - **mixed**
 作为以上两种的折中方案, 通过判断SQL语句是否会带来数据不一致问题而采用 statement 或 row
+
 ### MySQL的binlog有几种录入格式?分别有什么区别?
 有三种格式,statement,row和mixed.
 
 - statement模式下,记录单元为语句.即每一个sql造成的影响会记录.由于sql的执行是有上下文的,因此在保存的时候需要保存相关的信息,同时还有一些使用了函数之类的语句无法被记录复制.
 - row级别下,记录单元为每一行的改动,基本是可以全部记下来但是由于很多操作,会导致大量行的改动(比如alter table),因此这种模式的文件保存的信息太多,日志量太大。
 - mixed. 一种折中的方案,普通操作使用statement记录,当无法使用statement的时候使用row. 此外,新版的MySQL中对row级别也做了一些优化,当表结构发生变化的时候,会记录语句而不是逐行记录.
+
 ### 两阶段提交
 redo log 让 InnoDB 存储引擎拥有 crash-safe 能力; binlog 保证了 MySQL 集群下的数据一致性.
 redo log 在事务执行过程中可以不断写入, 而 binlog 只有在提交事务时才写入, 两者写入时机不同.
@@ -485,7 +484,7 @@ general_log_file = /usr/local/mysql/mysql-8.0.20/data/hecs-78422.log
 
 读未提交和串行化基本上是不需要考虑的隔离级别，前者不加锁限制，后者相当于单线程执行，效率太差。
 
-MySQL 在可重复读级别解决了幻读问题，是通过行锁和间隙锁的组合 Next-Key 锁实现的。
+MySQL 在可重复读级别解决了幻读问题，是通过行锁和间隙锁的组合 Next-Key 锁实现的。???
 
 ## 14. MVCC
 有了锁，当前事务没有写锁就不能修改数据，但还是能读的，而且读的时候，即使该行数据其他事务已修改且提交，还是`可以重复读到同样的值`。这就是MVCC，`多版本的并发控制，Multi-Version Concurrency Control`。
