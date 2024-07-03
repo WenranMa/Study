@@ -4,14 +4,12 @@ go 1.18
 
 require (
 	github.com/elastic/go-elasticsearch/v7 v7.17.1
-	github.com/elastic/go-elasticsearch/v8 v8.3.0
 	github.com/gin-gonic/gin v1.8.1
 	github.com/olivere/elastic v6.2.37+incompatible
-	github.com/olivere/elastic/v7 v7.0.32
 )
 
 require (
-	github.com/elastic/elastic-transport-go/v8 v8.0.0-20211216131617-bbee439d559c // indirect
+	github.com/fortytw2/leaktest v1.3.0 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
@@ -30,7 +28,7 @@ require (
 	github.com/ugorji/go/codec v1.2.7 // indirect
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97 // indirect
 	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110 // indirect
-	golang.org/x/sys v0.0.0-20210806184541-e5e7981a1069 // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/text v0.3.6 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
