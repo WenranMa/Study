@@ -579,8 +579,3 @@ Compose is a tool for defining and running multi-container Docker applications. 
 
 蓝绿发布的优势在于可以立即回滚到已知良好的状态，同时保证了部署过程的平滑和风险最小化，非常适合要求高可用性的在线服务
 
-
---- 
-
-
-
