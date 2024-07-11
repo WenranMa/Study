@@ -332,6 +332,38 @@ CNI提供了一种应用容器的插件化网络解决方案，定义对容器�
 
 对容器网络的设置和操作都通过插件（Plugin）进行具体实现，CNI插件包括两种类型：CNI Plugin和IPAM（IP Address Management）Plugin。CNI Plugin负责为容器配置网络资源，IPAM Plugin负责对容器的IP地址进行分配和管理。IPAM Plugin作为CNI Plugin的一部分，与CNI Plugin协同工作。
 
+
+
+Kubernetes (k8s) CNI (Container Network Interface) 模型是指 Kubernetes 中用来管理和配置容器网络的标准接口和框架。以下是关于 k8s CNI 模型的一些关键点：
+
+CNI 规范：
+
+CNI 是一种轻量级的插件架构，用于定义如何设置和删除容器网络接口。
+这个规范由 CoreOS 提出，并被多个容器编排系统采纳，包括 Kubernetes 和 Apache Mesos。
+Kubernetes 中的作用：
+
+Kubernetes 使用 CNI 规范来确保 Pod 之间能够进行网络通信。
+CNI 插件负责创建、配置和删除 Pod 的网络连接。
+Kubernetes 本身不直接处理网络配置，而是依赖于 CNI 插件来实现具体的网络策略。
+CNI 插件：
+
+CNI 插件是一组可执行文件，它们实现了 CNI 规范中的命令，如 ADD 和 DEL。
+常见的 CNI 插件包括 Flannel、Calico、Weave Net、Cilium 等。
+不同的 CNI 插件提供了不同的网络特性和性能，可以根据需求选择合适的插件。
+网络模型：
+
+Kubernetes 通常采用基于扁平地址空间的、非 NAT 的网络模型。
+每个 Pod 都拥有一个独立的 IP 地址，使得 Pod 之间的通信就像普通的主机间通信一样简单。
+CNI 插件负责确保这种网络模型的实现。
+工作流程：
+
+当 Pod 创建时，Kubernetes 会调用 CNI 插件来为 Pod 分配网络资源。
+CNI 插件会根据配置创建网络接口，并将其附加到 Pod 的网络命名空间中。
+同时，插件还需要配置宿主机上的路由表、防火墙规则等，以确保 Pod 可以访问外部网络或与其他 Pod 通信。
+当 Pod 被删除时，CNI 插件会清理相关的网络资源。
+总之，Kubernetes CNI 模型是一种标准化的方法，用于在 Kubernetes 集群中实现和管理容器网络。通过使用不同的 CNI 插件，用户可以根据自己的需求选择最适合的网络解决方案。
+
+
 ### 51、简述Kubernetes网络策略
 
 为实现细粒度的容器间网络访问隔离策略，Kubernetes引入Network Policy。

@@ -29,6 +29,18 @@
 而 Docker 镜像，恰好解决了该根本性的问题。Docker 镜像的本质，就是一个压缩包，但和 PaaS 的应用打包相比，该压缩包里则是多了完整的运行环境依赖内容，比如操作系统的所有文件和目录。只要用户拿着该压缩包，便可以通过某些技术手段在任何地方创建一个沙盒来运行用户的应用了，因为其做到了本地环境和云端环境高度的一致，再加上 Docker 充满趣味性的推广，比如 “1 分钟部署一个 WordPress 网站”、“3 分钟部署一个 Nginx 集群”等，最终通过与开发者的亲密关系，加上解决了打包的根本性难题，从而一举登天。
 
 # Docker 基础
+
+## 什么是容器?
+
+一句话概括容器：容器就是将软件打包成标准化单元，以用于开发、交付和部署。
+
+- **容器镜像是轻量的、可执行的独立软件包** ，包含软件运行所需的所有内容：代码、运行时环境、系统工具、系统库和设置。
+- **容器化软件适用于基于 Linux 和 Windows 的应用，在任何环境中都能够始终如一地运行。**
+- **容器赋予了软件独立性**，使其免受外在环境差异（例如，开发和预演环境的差异）的影响，从而有助于减少团队间在相同基础设施上运行不同软件时的冲突。
+
+## 虚拟机与容器
+容器虚拟化的是操作系统而不是硬件，容器之间是共享同一套操作系统资源的。虚拟机技术是虚拟出一套硬件后，在其上运行一个完整操作系统。因此容器的隔离级别会稍低一些。
+
 虚拟机技术：将物理服务器虚拟成多个逻辑服务器。
 ![hypervisor](/img/hypervisor.JPG)
 
@@ -37,6 +49,29 @@
 
 Docker不是虚拟机，但可以理解为轻量的虚拟机。Docker可以让开发者打包他们的应用以及依赖包到一个轻量级、可移植的容器中，然后发布到任何流行的Linux机器上。
 ![docker](/img/docker.JPG)
+
+- 容器是一个应用层抽象，共享操作系统内核，但各自作为独立的进程在用户空间中运行，占用空间小，启动快。
+- 虚拟机 (VM) 是一个物理硬件层抽象，用于将一台服务器变成多台服务器。管理程序允许多个 VM 在一台机器上运行。每个 VM 都包含一整套操作系统、一个或多个应用、必要的二进制文件和库资源，因此占用大量空间。而且 VM启动也十分缓慢。
+
+两者有不同的使用场景。虚拟机更擅长于彻底隔离整个运行环境。例如，云服务提供商通常采用虚拟机技术隔离不同的用户。而Docker 通常用于隔离不同的应用，例如前端，后端以及数据库。
+
+## 什么是 Docker?
+
+- Docker 是世界领先的软件容器平台。
+- Docker使用Go 语言进行开发实现，基于Linux 内核提供的 CGroup 功能和 namespace 来实现的，以及 AUFS 类的 **UnionFS** 等技术，**对进程进行封装隔离，属于操作系统层面的虚拟化技术。** 由于隔离的进程独立于宿主和其它的隔离的进程，因此也称其为容器。
+- Docker 能够自动执行重复性任务，例如搭建和配置开发环境，从而解放了开发人员。
+- 用户可以方便地创建和使用容器，把自己的应用放入容器。容器还可以进行版本管理、复制、分享、修改，就像管理普通的代码一样。
+
+容器的特点：
+- **轻量** : 在一台机器上运行的多个 Docker 容器可以共享这台机器的操作系统内核；它们能够迅速启动，只需占用很少的计算和内存资源。镜像是通过文件系统层进行构造的，并共享一些公共文件。这样就能尽量降低磁盘用量，并能更快地下载镜像。
+- **标准** : Docker 容器基于开放式标准，能够在所有主流 Linux 版本、Microsoft Windows 以及包括 VM、裸机服务器和云在内的任何基础设施上运行。
+- **安全** : Docker 赋予应用的隔离性不仅限于彼此隔离，还独立于底层的基础设施。Docker 默认提供最强的隔离，因此应用出现问题，也只是单个容器的问题，而不会波及到整台机器。
+- 一致的运行环境。
+- 更快速的启动时间。
+- 隔离性。
+- 弹性伸缩，快速扩展。
+- 迁移方便。
+- 持续交付和部署。
 
 Docker 包括三个基本概念:
 - 镜像（Image）
@@ -68,28 +103,50 @@ A container is launched by running an image, an instance of an image. What the i
 最常使用的Registry公开服务是官方的Docker Hub(hub.docker.com)。
 
 ## 命令
-    docker run ubuntu echo hello docker 是用一个Ubuntu镜像运行ehco hello docker命令。
-    docker run nginx 启动一个nginx容器。
-    docker pull 获取image。
-    docker build 创建image。
-    docker images 可以看本地所有镜像。
-    docker run 启动container。
-    docker ps 可以查看运行中的container。
-    docker stop [container id] 来停止容器。
-    docker rmi 删除image。
-    docker rm 删除container。
-    docker cp 在host和container之间拷贝文件。
-    docker commit 保存改动为新的image。
+```bash
+# image:
+docker search 镜像id或name：在Docker Hub（或其他镜像仓库如阿里镜像）仓库中搜索关键字的镜像
+docker pull 镜像id或name：从仓库中下载镜像，若要指定版本，则要在冒号后指定
+docker images 列出已经下载的镜像，查看镜像
+docker rmi 镜像id或name：删除本地镜像
+docker rmi -f 镜像id或name:  删除镜像
+docker build 构建镜像
+docker images prune # 清理临时的、没有被使用的镜像文件。-a, --all: 删除所有没有用的镜像，而不仅仅是临时文件；
 
-    docker search 搜索镜像。
-    docker tag [imagename] [username] 给镜像打tag
-    docker push [imagename] 提交打registry
+# container:
+docker container ls
+docker container ls --all # 列出本机所有容器，包括终止运行的容器
+docker container rm [containerID]
+docker container run hello-world # docker container run命令会从 image 文件，生成一个正在运行的容器实例 
+docker run ubuntu echo hello docker 是用一个Ubuntu镜像运行ehco hello docker命令。
+docker run nginx 启动一个nginx容器。
+docker run 启动container。
+docker container kill [containID] # docker container kill 命令手动终止
+docker ps：列出运行中的容器
+docker ps -a ： 查看所有容器，包括未运行
+docker stop 容器id或name：停止容器
+docker kill 容器id：强制停止容器
+docker start 容器id或name：启动已停止的容器
+docker inspect 容器id：查看容器的所有信息
+docker container logs 容器id：查看容器日志
+docker top 容器id：查看容器里的进程
+docker exec -it 容器id /bin/bash：进入容器
+exit：退出容器
+docker rm 容器id或name：删除已停止的容器
+docker rm -f 容器id：删除正在运行的容器
+docker exec -it 容器ID sh :进入容器
 
-    docker run -d 后台运行
-    docker exec 在运行的容器中运行命令 （-i，-t）
+docker cp 在host和container之间拷贝文件。
+docker commit 保存改动为新的image。
 
-    docker rm $(docker ps -aq) 删除所有container
-    docker rmi $(docker images -q) 删除所有image
+docker tag [imagename] [username] 给镜像打tag
+docker push [imagename] 提交打registry
+
+docker run -d 后台运行
+docker exec 在运行的容器中运行命令 （-i，-t）
+
+docker version # 查看docker版本
+```
 
 ## Dockerfile 
 可以用Dockerfile来创建镜像。例如：
@@ -335,7 +392,12 @@ Libnetwork 支持多种网络模式以适应不同的容器网络配置需求：
 
 
 # 高级
-容器到底是什么呢？这里可以先下一个定义：
+
+Docker 技术是基于 LXC（Linux container- Linux 容器）虚拟容器技术的。
+
+LXC，其名称来自 Linux 软件容器（Linux Containers）的缩写，一种操作系统层虚拟化（Operating system–level virtualization）技术，为 Linux 内核容器功能的一个用户空间接口。它将应用软件系统打包成一个软件容器（Container），内含应用软件本身的代码，以及所需要的操作系统核心和库。通过统一的名字空间和共用 API 来分配不同软件容器的可用硬件资源，创造出应用程序的独立沙箱运行环境，使得 Linux 用户可以容易的创建和管理系统或应用容器。
+
+LXC 技术主要是借助 Linux 内核中提供的 CGroup 功能和 namespace 来实现的，通过 LXC 可以为软件提供一个独立的操作系统运行环境。
 
 一个“容器”，实际上是一个由 Linux Namespace、Linux Cgroups 和 rootfs 三种技术构建出来的进程的隔离环境。
 
@@ -578,9 +640,4 @@ Compose is a tool for defining and running multi-container Docker applications. 
 - 清理和准备：如果新版本成功上线，蓝色环境可以用来准备下一次部署的新版本，或者作为紧急情况下的备用环境，然后关闭或更新为下一个“绿色”环境。
 
 蓝绿发布的优势在于可以立即回滚到已知良好的状态，同时保证了部署过程的平滑和风险最小化，非常适合要求高可用性的在线服务
-
-
---- 
-
-
 

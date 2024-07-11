@@ -207,13 +207,17 @@ MySQL中的索引可以以一定顺序引用多列，这种索引叫作联合索
 3. 看哪个N更靠近1, 进行索引的创建
 
 ## 18. 索引下推
-对于SQL语句 `SELECT * FROM t WHERE name LIKE '陈%' AND age = 10` , INDEX(name, age) 情况来说：
+对于SQL语句 `SELECT * FROM t WHERE name LIKE '张%' AND age = 10` , INDEX(name, age) 情况来说：
 
-在 MySQL5.6 之前没有引入索引下推优化时, 执行流程如下图, 在定位完name字段的索引后, 需要一条条进行回表查询, 然后再判断其他字段是否满足条件.
+在 MySQL5.6 之前没有引入索引下推优化时, 查询条件name LIKE不是等值匹配，根据最左匹配原则，在(name, age)索引树上只用到name去匹配，查找到4条记录（id 3,4,5,6），拿到这4条记录的id分别回表查询，然后将结果返回给MySQL server，在MySQL server层进行age字段的判断。整个过程需要回表4次。
 
-![index__no_pushdown](../img/mysql_index_pushdown_01.png)
+执行流程如下图：
 
-而 MySQL5.6 引入了索引下推优化后, 可以在所有遍历过程中, `对索引中包含的字段先进行判断过滤`, 然后再进行后续操作, 减少了回表次数.
+![index__no_pushdown](../img/mysql_index_pushdown_01.png) 
+
+而 MySQL5.6 引入了索引下推优化后, 可以在所有遍历过程中, `对索引中包含的字段先进行判断过滤`, 然后再进行后续操作, 减少了回表次数. 在索引遍历过程中，对索引中的字段先做判断，过滤掉不符合条件的索引项，也就是判断age是否等于10，age不为10则直接跳过。因此在(name, age)索引树只匹配2个记录，之后拿着此记录对应的id（id=4,5）回表查询全部数据，整个过程回表2次。
+
+可以使用explain查看是否使用索引下推，当Extra列的值为Using index condition，则表示使用了索引下推。
 
 ![index_pushdown](../img/mysql_index_pushdown_02.png)
 
@@ -324,6 +328,9 @@ SELECT * FROM `user` WHERE `name` LIKE '%冰';
 SELECT * FROM `user` WHERE `name` = '张三' OR height = '175';
 -- OR导致失效是在特定情况下的，并不是所有的OR都是使索引失效，如果OR连接的是同一个字段，那么索引不会失效，反之索引失效。
 ```
+
+尝试将OR条件转换为UNION操作，特别是当两边的条件互斥时。这样可以分别执行两个查询，并合并结果，每个查询可以独立使用索引。
+
 
 8. 数据库和表的字符集统一使用utf8mb4
 
@@ -669,8 +676,7 @@ Index Condition Pushdown(ICP)是MySQL 5.6中新特性，是一种在存储引擎
 `4 LIMIT 1 对优化的影响`
 针对的是会扫描全表的 SQL 语句，如果你可以确定结果集只有一条，那么加上 LIMIT 1 的时候，当找到一条结果的时候就不会继续扫描了，这样会加快查询速度。
 
-如果数据表已经对字段建立了唯一索引，那么可以通过索引进行查询，不会全表扫描的话，就不需要加
-上 LIMIT 1 了。
+如果数据表已经对字段建立了唯一索引，那么可以通过索引进行查询，不会全表扫描的话，就不需要加上 LIMIT 1 了。
 
 `5 多使用COMMIT`
 只要有可能，在程序中尽量多使用 COMMIT，这样程序的性能得到提高，需求也会因为 COMMIT 所释放的资源而减少。
