@@ -1,26 +1,8 @@
-# Shell 编程基础知识总结
+# Shell 编程基础
 
-Shell 编程在我们的日常开发工作中非常实用，目前 Linux 系统下最流行的运维自动化语言就是 Shell 和 Python 了。
+Shell 几乎是 IT 企业必须使用的运维自动化编程语言，特别是在运维工作中的服务监控、业务快速部署、服务启动停止、数据备份及处理、日志分析等环节里，shell 是不可缺的。Shell 是一个命令解释器，解释执行用户所输入的命令和程序。一输入命令，就立即回应的交互的对话方式。
 
-这篇文章我会简单总结一下 Shell 编程基础知识，带你入门 Shell 编程！
-
-## 走进 Shell 编程的大门
-
-### 为什么要学 Shell？
-
-学一个东西，我们大部分情况都是往实用性方向着想。从工作角度来讲，学习 Shell 是为了提高我们自己工作效率，提高产出，让我们在更少的时间完成更多的事情。
-
-很多人会说 Shell 编程属于运维方面的知识了，应该是运维人员来做，我们做后端开发的没必要学。我觉得这种说法大错特错，相比于专门做 Linux 运维的人员来说，我们对 Shell 编程掌握程度的要求要比他们低，但是 Shell 编程也是我们必须要掌握的！
-
-目前 Linux 系统下最流行的运维自动化语言就是 Shell 和 Python 了。
-
-两者之间，Shell 几乎是 IT 企业必须使用的运维自动化编程语言，特别是在运维工作中的服务监控、业务快速部署、服务启动停止、数据备份及处理、日志分析等环节里，shell 是不可缺的。Python 更适合处理复杂的业务逻辑，以及开发复杂的运维软件工具，实现通过 web 访问等。Shell 是一个命令解释器，解释执行用户所输入的命令和程序。一输入命令，就立即回应的交互的对话方式。
-
-另外，了解 shell 编程也是大部分互联网公司招聘后端开发人员的要求。下图是我截取的一些知名互联网公司对于 Shell 编程的要求。
-
-![大型互联网公司对于shell编程技能的要求](https://oss.javaguide.cn/github/javaguide/cs-basics/shell/60190220.jpg)
-
-### 什么是 Shell？
+## 什么是 Shell？
 
 简单来说“Shell 编程就是对一堆 Linux 命令的逻辑化处理”。
 
@@ -28,38 +10,28 @@ W3Cschool 上的一篇文章是这样介绍 Shell 的，如下图所示。
 ![什么是 Shell？](https://oss.javaguide.cn/github/javaguide/cs-basics/shell/19456505.jpg)
 
 ### Shell 编程的 Hello World
-
-学习任何一门编程语言第一件事就是输出 HelloWorld 了！下面我会从新建文件到 shell 代码编写来说下 Shell 编程如何输出 Hello World。
-
-(1)新建一个文件 helloworld.sh :`touch helloworld.sh`，扩展名为 sh（sh 代表 Shell）（扩展名并不影响脚本执行，见名知意就好，如果你用 php 写 shell 脚本，扩展名就用 php 好了）
+(1)新建一个文件 helloworld.sh :`touch helloworld.sh`，扩展名为 sh（sh 代表 Shell）
 
 (2) 使脚本具有执行权限：`chmod +x helloworld.sh`
-
-(3) 使用 vim 命令修改 helloworld.sh 文件：`vim helloworld.sh`(vim 文件------>进入文件----->命令模式------>按 i 进入编辑模式----->编辑文件 ------->按 Esc 进入底行模式----->输入:wq/q! （输入 wq 代表写入内容并退出，即保存；输入 q!代表强制退出不保存。）)
-
-helloworld.sh 内容如下：
 
 ```shell
 #!/bin/bash
 #第一个shell小程序,echo 是linux中的输出命令。
 echo  "helloworld!"
 ```
+shell 中 # 符号表示注释。shell 的第一行比较特殊，一般都会以#!开始来指定使用的 shell 类型。在 linux 中，除了 bash shell 以外，还有很多版本的 shell， 例如 zsh、dash 等等...不过 bash shell 还是我们使用最多的。
 
-shell 中 # 符号表示注释。**shell 的第一行比较特殊，一般都会以#!开始来指定使用的 shell 类型。在 linux 中，除了 bash shell 以外，还有很多版本的 shell， 例如 zsh、dash 等等...不过 bash shell 还是我们使用最多的。**
-
-(4) 运行脚本:`./helloworld.sh` 。（注意，一定要写成 `./helloworld.sh` ，而不是 `helloworld.sh` ，运行其它二进制的程序也一样，直接写 `helloworld.sh` ，linux 系统会去 PATH 里寻找有没有叫 helloworld.sh 的，而只有 /bin, /sbin, /usr/bin，/usr/sbin 等在 PATH 里，你的当前目录通常不在 PATH 里，所以写成 `helloworld.sh` 是会找不到命令的，要用`./helloworld.sh` 告诉系统说，就在当前目录找。）
-
-![shell 编程Hello World](https://oss.javaguide.cn/github/javaguide/cs-basics/shell/55296212.jpg)
+(3) 运行脚本:`./helloworld.sh` 。
 
 ## Shell 变量
 
 ### Shell 编程中的变量介绍
 
-**Shell 编程中一般分为三种变量：**
+三种变量：
 
-1. **我们自己定义的变量（自定义变量）:** 仅在当前 Shell 实例中有效，其他 Shell 启动的程序不能访问局部变量。
-2. **Linux 已定义的环境变量**（环境变量， 例如：`PATH`, ​`HOME` 等..., 这类变量我们可以直接使用），使用 `env` 命令可以查看所有的环境变量，而 set 命令既可以查看环境变量也可以查看自定义变量。
-3. **Shell 变量**：Shell 变量是由 Shell 程序设置的特殊变量。Shell 变量中有一部分是环境变量，有一部分是局部变量，这些变量保证了 Shell 的正常运行
+1. 自定义变量：仅在当前 Shell 实例中有效，其他 Shell 启动的程序不能访问局部变量。
+2. 环境变量， 例如：`PATH`, ​`HOME` 等..., 这类变量我们可以直接使用，使用 `env` 命令可以查看所有的环境变量，而 `set` 命令既可以查看环境变量也可以查看自定义变量。
+3. Shell 变量：Shell 变量是由 Shell 程序设置的特殊变量。Shell 变量中有一部分是环境变量，有一部分是局部变量，这些变量保证了 Shell 的正常运行
 
 **常用的环境变量:**
 
